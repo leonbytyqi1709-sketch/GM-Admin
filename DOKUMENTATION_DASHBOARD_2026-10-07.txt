@@ -1,0 +1,215 @@
+================================================================================
+PROJEKT-DOKUMENTATION: GMCUTZ STUDIO TERMINAL-DASHBOARD
+Datum: 07. Oktober 2026
+Projektpfad: C:\Users\schule\Desktop\GM-Cutz Webseite Terminal-Dashboard
+Webseiten-Projekt: C:\Users\schule\Desktop\GM-Cutz Webseite
+Live-Webseite (Kundenbuchung): https://gm-cutz.vercel.app
+================================================================================
+
+1. ÜBERSICHT & ZIELSETZUNG
+--------------------------------------------------------------------------------
+Für Barber Giovanni wurde ein eigens entwickeltes, hochelegantes Web-Terminal-
+Dashboard geschaffen. Es dient Gio als zentrale Kommandozentrale im Barber-Studio,
+um alle Kundenbuchungen in Echtzeit im Blick zu behalten, ohne dass er mit
+technischen Konsolen oder Datenbank-Portalen arbeiten muss.
+
+Das Dashboard synchronisiert sich vollautomatisch mit derselben Neon-PostgreSQL-
+Cloud-Datenbank, in die auch die Kunden über die offizielle GMCUTZ-Webseite
+(https://gm-cutz.vercel.app) buchen.
+
+
+2. HIGHLIGHTS & FUNKTIONEN FÜR GIO
+--------------------------------------------------------------------------------
+
+2.1 LIVE-BEGRÜSSUNG, UHRZEIT & DATUM
+- Dynamische Begrüßung nach Tageszeit:
+    * "Guten Morgen, Giovanni" (vor 11 Uhr)
+    * "Guten Tag, Giovanni" (12 - 17 Uhr)
+    * "Guten Abend, Giovanni" (ab 18 Uhr)
+- Sekundengenaue Digitaluhr im GMCUTZ Barber-Design (z. B. 16:45:12 Uhr).
+- Volles Datum auf Deutsch (z. B. "Mittwoch, 07. Oktober 2026").
+- Statusanzeige: "🟢 Live verbunden (Neon DB)".
+
+2.2 ECHTZEIT-SYNCHRONISATION & CHIME-TON
+- Das Dashboard ruft im Hintergrund alle 8 Sekunden selbstständig neue Termine ab.
+- Bucht ein Kunde online auf der Webseite einen Termin:
+    * Das Dashboard spielt einen dezenten Benachrichtigungston ab (Web Audio API Chime).
+    * Oben ploppt ein Benachrichtigungs-Banner mit dem neuen Kundennamen auf.
+    * Der Termin reiht sich sofort automatisch in die Liste ein.
+
+2.3 NÄCHSTER KUNDE SPOTLIGHT & TAGES-STATISTIK
+- Großes Banner ganz oben hebt den nächsten Kunden des Tages hervor inklusive
+  Uhrzeit, Haarschnitt und Extras.
+- Kacheln für schnelle Übersicht:
+    * "Kunden Heute"
+    * "Morgen"
+    * "Diese 7 Tage"
+    * "Alle Zukünftigen"
+
+2.4 DETAIL-KARTEN MIT 1-KLICK AKTIONEN
+Jede Terminkarte bietet Gio maximale Erleichterung im Arbeitsalltag:
+- Große Zeitplakette (z. B. "17:30 Uhr") mit Tagesanzeige (Heute / Morgen).
+- Kunde: Name, Telefonnummer, Buchungs-ID.
+- Haarschnitt & Extras (z. B. Skin Fade + Bartrasur + Black Mask).
+- Eventuelle Kundennotizen.
+- Grüner "WhatsApp"-Button: Öffnet direkt WhatsApp Web bzw. die WhatsApp-App mit
+  einem vorausgefüllten Begrüßungstext ("Hallo [Name], hier ist Gio von GMCUTZ...").
+- Anruf-Button: Direkte Wahl der Kunden-Handynummer.
+- Status-Wechsel: Ein Klick auf "Erledigt" oder "Absagen".
+- Lösch-Funktion: Mülleimer-Icon für stornierte Testtermine.
+
+2.5 WALK-IN & TELEFON-BUCHUNG (SLOT-SPERREN)
+- Über den Button "+ Neuer Termin" kann Gio spontane Studio-Gäste oder
+  telefonische Anfragen eintragen.
+- Dieser Termin wird sofort in der Cloud-Datenbank gespeichert, sodass der
+  entsprechende Zeitslot online auf der Webseite für andere Kunden gesperrt ist.
+
+
+3. TECHNISCHE STRUKTUR & DATEIEN
+--------------------------------------------------------------------------------
+
+Ordner: C:\Users\schule\Desktop\GM-Cutz Webseite Terminal-Dashboard
+
+- `Dashboard Starten.bat`:
+  Windows-Doppelklick-Starter. Startet den lokalen Server auf Port 3001 und
+  öffnet automatisch den Browser unter http://localhost:3001.
+
+- `app/page.tsx`:
+  Vollständige Dashboard-Oberfläche in Next.js & Tailwind CSS im GMCUTZ
+  Obsidian/Gold-Look.
+
+- `lib/db.ts`:
+  Datenbank-Adapter für Neon PostgreSQL (@neondatabase/serverless).
+  Funktionen: getAllBookings, updateBookingStatus, deleteBooking, createManualBooking.
+
+- `app/api/bookings/route.ts`:
+  REST-API (GET zum Laden aller Termine, POST zum Anlegen manueller Buchungen).
+
+- `app/api/bookings/[id]/route.ts`:
+  REST-API (PATCH zum Statuswechsel, DELETE zum Entfernen).
+
+- `.env.local`:
+  Enthält den Verbindungsschlüssel zur geteilten Neon-Cloud-Datenbank:
+  DATABASE_URL=postgresql://neondb_owner:npg_nPrawV13hDGy@ep-cold-math-b1fu4slf-pooler.c-5.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+
+- `app/globals.css`:
+  GMCUTZ Luxus-Design (Dark & Warm Gold Farbpalette, Animationen, Glow-Borders).
+
+
+4. BEDIENUNGSANLEITUNG FÜR GIO
+--------------------------------------------------------------------------------
+
+Schritt 1: STARTEN
+- Auf dem Desktop in den Ordner `GM-Cutz Webseite Terminal-Dashboard` gehen.
+- Doppelklick auf die Datei `Dashboard Starten.bat`.
+- Der Browser öffnet sich automatisch und zeigt das Dashboard an.
+
+Schritt 2: IM ALLTAG NUTZEN
+- Das Dashboard kann den ganzen Tag auf einem Tablet, Laptop oder Monitor im
+  Studio geöffnet bleiben.
+- Wenn ein Kunde kommt: Auf "WhatsApp" tippen, falls man schreiben will, oder
+  nach dem Haarschnitt auf "Erledigt" klicken.
+- Wenn jemand spontan in den Laden kommt: Oben rechts auf "+ Neuer Termin" klicken.
+
+Schritt 3: BEENDEN
+- Das Konsolenfenster einfach mit dem "X" schließen oder Strg + C drücken.
+
+
+5. OPTIONAL: ONLINE-HOSTING AUF VERCEL (FÜR TABLET / HANDY)
+--------------------------------------------------------------------------------
+Falls Gio das Dashboard auch auf seinem iPhone oder iPad von unterwegs ohne PC
+aufrufen möchte, kann dieser Projektordner in 2 Minuten auf Vercel veröffentlicht
+werden (z. B. unter `https://gmcutz-dashboard.vercel.app`):
+1. Ordner als privates GitHub-Repository hochladen.
+2. Auf Vercel importieren und die DATABASE_URL in den Environment Variables hinterlegen.
+3. Danach kann Gio die URL einfach als Lesezeichen / App-Icon auf seinem Handy ablegen.
+
+
+6. STATUS AM 07. OKTOBER 2026 (INITIALISIERUNG)
+--------------------------------------------------------------------------------
+- Entwicklung & Initialisierung: Erfolgreich abgeschlossen.
+- Datenbankverbindung zu Neon: Getestet und aktiv (inklusive bestehender Buchungen).
+- Build & Abhängigkeiten: Vollständig installiert.
+
+7. DESIGN-ANPASSUNG: ECHTE GM-CUTZ WEBSEITEN-ÄSTHETIK (22:30 UHR)
+--------------------------------------------------------------------------------
+Gemäß Gio's Feedback wurde das Design exakt an die ruhige, edle Ästhetik der
+offiziellen GMCUTZ-Webseite (gm-cutz.vercel.app) angeglichen:
+
+- KEINE LED-LEUCHTSTREIFEN & KEINE BUNTE ANIMATIONEN:
+  Das Barber-Pole-Lichtband und schwebende Licht-Orbs wurden entfernt.
+  Stattdessen gilt das matte, noble Obsidian-Design (#070708) mit dem subtilen
+  Warm-Amber "Hero-Halo" aus dem Webseiten-Code.
+- KEINE KUNDENFOTOS:
+  Karten und Übersichten sind nun absolut sauber, aufgeräumt und textfokussiert.
+  Keine ablenkenden Haarschnitt-Bilder oder Fotogalerien auf den Terminkarten.
+- WEBSEITEN-MARKEN-LOOK:
+  Header mit Original-Logo im schwarzen Badge (mit Bernstein-Rand),
+  "GM-CUTZ" + "TRESSA"-Insignia und der exakten Live-Pill
+  "STUDIO ACTIVE · NEON CLOUD SYNC".
+- FUNKTIONEN VOLL ERHALTEN:
+  * Sekundengenaue Uhrzeit & Datumsanzeige
+  * Nächster Kunde im Spotlight (WhatsApp, Anruf, Erledigt)
+  * Zeitslot-Timeline für den Tag (10:00 bis 20:30 Uhr mit Klick zum Eintragen)
+  * Stat-Karten (Heute, Morgen, 7 Tage, Gesamt)
+8. SESSION-ABSCHLUSS AM 07. OKTOBER 2026 (22:35 UHR)
+--------------------------------------------------------------------------------
+- SERVER-STATUS: Sauber beendet und heruntergefahren (Port 3001 frei).
+- CODE-STATUS: Alle Änderungen kompiliert und fehlerfrei getestet (`npm run build` erfolgreich).
+- DESIGN-STATUS:
+  * 100% kongruent mit der GMCUTZ-Webseite (Obsidian #070708, Warm Amber, Hero-Halo).
+  * Keine LEDs, keine Kundenfotos, kein übertriebenes Bling-Bling.
+  * Ultra-saubere Karten für Gio im Studio-Alltag.
+- DATENBANK:
+  * Neon PostgreSQL Cloud DB verbunden.
+  * Alle aktuellen Buchungen (Yan, Giovanni, Angelo, Leon, Suvaathy, Igor) synchronisiert.
+
+WIE ES MORGEN WEITERGEHT:
+1. Projektordner öffnen:
+   `C:\Users\schule\Desktop\GM-Cutz Webseite Terminal-Dashboard`
+2. Doppelklick auf `Dashboard Starten.bat`
+   -> Startet den Server und öffnet automatisch http://localhost:3001 im Browser.
+3. Bereit für eventuelle neue Features oder Wünsche von Gio!
+================================================================================
+
+================================================================================
+9. SESSION-UPDATE AM 08. OKTOBER 2026: KALENDER-OPTIK & IPAD-STUDIO-COCKPIT
+--------------------------------------------------------------------------------
+Gemäß Gio's Feedback wurde das Dashboard vom reinen Karten-System zu einem
+vollwertigen "Barber Studio Operating System" mit Kalender- und Tablet-Optik
+weiterentwickelt:
+
+1. DREI ANSICHTSMODI (OBEN UMSCHALTBAR):
+   - "Tagesplan" (Interaktiver Stundentakt von 10:00 bis 20:30 Uhr)
+   - "Karten" (Klassische Detail-Kacheln mit Schnellsuche)
+   - "Woche" (7-Tage-Salon-Matrix mit Tagesumsatz & Kundenzahlen)
+
+2. INTERAKTIVER KALENDER & SELBSTSTÄNDIGES EINPLANEN:
+   - Jeder Zeitslot (10:00 - 20:30) zeigt statusbezogene Farben & Aktionen.
+   - Tippen auf einen freien Slot öffnet sofort die Schnelleinplanung:
+     * Walk-In Gast oder Telefon-Kunde buchen
+     * Haarschnitt-Schnellauswahl inklusive offizieller GMCUTZ-Preise
+     * Addon-Auswahl (Bartrasur, Tressa Spray etc.)
+   - NEU: 1-Klick "Pause / Slot sperren" (Kaffeetasse):
+     Sperrt den Slot sofort in der Neon Cloud DB, sodass online auf der
+     Webseite niemand mehr buchen kann.
+
+3. IPAD & TABLET ERGONOMIE (STUDIO COCKPIT):
+   - Touch-freundliche Button-Höhen (44px - 48px) für nasse/ölige Hände im Studio.
+   - Dual-Panel-Layout auf iPad (Querformat):
+     * Links: Salon-Ablauf-Timeline
+     * Rechts: iPad Command Panel mit großem Spotlight für den aktuellen Kunden,
+       WhatsApp 1-Tap, Anruf und Kassenstatus.
+
+4. TAGESUMSATZ- & KASSEN-RECHNER:
+   - Live-Kalkulation der Einnahmen für jeden ausgewählten Tag:
+     * Tagesumsatz-Potenzial (z. B. 280 €)
+     * Bereits kassiert / erledigt (z. B. 115 €)
+     * Noch offen (z. B. 165 €)
+     * Status-Workflow: "Bestätigt" -> "Im Stuhl" (Schneiden läuft) -> "Erledigt".
+
+STATUS: Erfolgreich kompiliert (`npm run build` fehlerfrei) und auf Port 3001 aktiv.
+================================================================================
+
+
+

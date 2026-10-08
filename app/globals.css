@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-matte: #070708;
+  --color-charcoal: #0e0e11;
+  --color-card: #141418;
+  --color-card-hover: #1c1c22;
+  --color-warm: #fff6e8;
+  --color-amber: #e8ba84;
+  --color-amber-light: #f7d8af;
+  --color-gold: #c99756;
+  --color-muted: #9c9ca6;
+  --color-border-subtle: rgba(255, 255, 255, 0.08);
+  --color-border-gold: rgba(232, 186, 132, 0.25);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #070708;
+  color: #ffffff;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* Subtle, classy ambient background halo matching the website */
+.hero-halo {
+  background: radial-gradient(
+    ellipse 80% 50% at 50% 15%,
+    rgba(232, 186, 132, 0.06),
+    rgba(14, 14, 17, 0.3) 60%,
+    transparent 85%
+  );
+}
+
+/* Tasteful gold gradient text matching the website */
+.gold-gradient-text {
+  background: linear-gradient(135deg, #fff7eb 0%, #e8ba84 50%, #c99756 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Classy glassmorphism matching the website */
+.website-card {
+  background: rgba(14, 14, 17, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.website-card:hover {
+  border-color: rgba(232, 186, 132, 0.3);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.8), 0 0 20px -5px rgba(232, 186, 132, 0.08);
+}
+
+.website-card-active {
+  background: linear-gradient(145deg, rgba(20, 20, 25, 0.85) 0%, rgba(14, 14, 17, 0.95) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(232, 186, 132, 0.35);
+  box-shadow: 0 15px 40px -10px rgba(0, 0, 0, 0.8), 0 0 25px -8px rgba(232, 186, 132, 0.12);
+}
+
+/* Minimal pill badges */
+.glass-pill {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-pill-gold {
+  background: rgba(232, 186, 132, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(232, 186, 132, 0.25);
+  color: #f7d8af;
+}
+
+/* Subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #070708;
+}
+::-webkit-scrollbar-thumb {
+  background: #1c1c22;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2a2a34;
+}
