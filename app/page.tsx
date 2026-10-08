@@ -129,7 +129,7 @@ export default function GioModularStudio() {
   const [refreshing, setRefreshing] = useState(false);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
-  // === SALON STATUS STEUERUNG (VOLLE KONTROLLE) ===
+  // === SALON STATUS STEUERUNG ===
   const [studioStatus, setStudioStatus] = useState<"open" | "pause" | "closed">("open");
 
   // === ANWENDUNGS-MODULE ===
@@ -178,6 +178,7 @@ export default function GioModularStudio() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const previousBookingsRef = useRef<Booking[]>([]);
+  const [cleaningUp, setCleaningUp] = useState(false);
 
   // Sound Effekte
   const playSound = (type: "chime" | "success" | "click" = "click") => {
@@ -218,7 +219,7 @@ export default function GioModularStudio() {
     } catch {}
   };
 
-  // Auth Status beim Laden prüfen (Persistenz für iPad)
+  // Auth Status beim Laden prüfen (Persistenz)
   useEffect(() => {
     try {
       const savedAuth = localStorage.getItem("gmcutz_terminal_auth");
@@ -413,7 +414,7 @@ export default function GioModularStudio() {
           prev.map((b) => (b.id === selectedBookingForDetail.id ? { ...b, notes: editingNotes } : b))
         );
         setSelectedBookingForDetail((prev) => (prev ? { ...prev, notes: editingNotes } : null));
-        setDetailActionSuccess("Barber-Notiz dauerhaft gespeichert!");
+        setDetailActionSuccess("Barber-Notiz gespeichert!");
         setTimeout(() => setDetailActionSuccess(null), 3000);
         playSound("success");
       }
@@ -445,8 +446,6 @@ export default function GioModularStudio() {
       setUpdatingId(null);
     }
   };
-
-  const [cleaningUp, setCleaningUp] = useState(false);
 
   // Manuelle Bereinigung alter Termine (> 5 Tage)
   const handleManualCleanup = async () => {
@@ -555,12 +554,10 @@ export default function GioModularStudio() {
     };
   }, [bookings, todayStr]);
 
-  // =========================================================================
-  // BERECHNUNG DER GANZEN AKTUELLEN WOCHE FÜRS DASHBOARD (MO - SO)
-  // =========================================================================
+  // Berechnung der ganzen aktuellen Woche fürs Dashboard
   const currentWeekDays = useMemo(() => {
     const now = new Date(currentTime);
-    const dayOfWeek = now.getDay(); // 0 = So, 1 = Mo, 2 = Di...
+    const dayOfWeek = now.getDay();
     const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const monday = new Date(now);
     monday.setDate(now.getDate() + diffToMonday);
@@ -587,7 +584,7 @@ export default function GioModularStudio() {
         .sort((a, b) => a.time.localeCompare(b.time));
 
       const dayName = d.toLocaleDateString("de-DE", { weekday: "short" });
-      const dayFullDate = d.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long" });
+      const dayFullDate = d.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "short" });
       const isToday = dateStr === todayStr;
 
       days.push({
@@ -603,7 +600,6 @@ export default function GioModularStudio() {
     return days;
   }, [currentTime, bookings, todayStr]);
 
-  // Gesamtanzahl der Termine der aktuellen Woche
   const totalWeekAppointmentsCount = useMemo(() => {
     return currentWeekDays.reduce((acc, day) => acc + day.bookings.filter((b) => b.status !== "blocked").length, 0);
   }, [currentWeekDays]);
@@ -616,8 +612,8 @@ export default function GioModularStudio() {
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
 
-    let startDayOfWeek = firstDay.getDay(); // 0 = Sonntag
-    startDayOfWeek = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1; // 0 = Mo, 6 = So
+    let startDayOfWeek = firstDay.getDay();
+    startDayOfWeek = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
 
     const totalDays = lastDay.getDate();
     const tiles: {
@@ -656,7 +652,6 @@ export default function GioModularStudio() {
     };
   }, [currentCalendarMonth, bookings, todayStr]);
 
-  // Details zum ausgewählten Tag im Kalender
   const selectedDayDetails = useMemo(() => {
     const dayBookings = bookings
       .filter((b) => b.date === selectedDayForDetails && b.status !== "cancelled")
@@ -668,7 +663,6 @@ export default function GioModularStudio() {
     };
   }, [bookings, selectedDayForDetails]);
 
-  // Kundenliste (CRM) filtern
   const filteredBookingsList = useMemo(() => {
     return bookings
       .filter((b) => {
@@ -696,7 +690,6 @@ export default function GioModularStudio() {
       });
   }, [bookings, clientStatusFilter, searchQuery]);
 
-  // Detail Drawer öffnen (Für JEDEN Termin auf Klick)
   const openDetailDrawer = (booking: Booking) => {
     setSelectedBookingForDetail(booking);
     setEditingNotes(booking.notes || "");
@@ -704,7 +697,7 @@ export default function GioModularStudio() {
   };
 
   // =========================================================================
-  // ANSICHT: MASTER-PASSWORT LOGIN SCREEN (WENN NICHT EINGELOGGT)
+  // LOGIN SCREEN
   // =========================================================================
   if (authLoading) {
     return (
@@ -717,59 +710,57 @@ export default function GioModularStudio() {
   if (!isAuthenticated) {
     return (
       <main className="min-h-screen bg-[#070708] hero-halo flex flex-col items-center justify-center p-4 selection:bg-[#e8ba84] selection:text-black">
-        <div className="w-full max-w-md">
-          {/* Logo & Brand */}
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-[#1c1c24] to-[#0e0e11] border border-[#e8ba84]/30 shadow-2xl mx-auto flex items-center justify-center mb-4">
-              <Scissors className="w-8 h-8 text-[#e8ba84]" />
+        <div className="w-full max-w-sm sm:max-w-md">
+          <div className="text-center mb-6 sm:mb-8">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-3xl bg-gradient-to-br from-[#1c1c24] to-[#0e0e11] border border-[#e8ba84]/30 shadow-2xl mx-auto flex items-center justify-center mb-3 sm:mb-4">
+              <Scissors className="w-7 h-7 sm:w-8 sm:h-8 text-[#e8ba84]" />
             </div>
-            <h1 className="text-3xl font-black tracking-tight text-white flex items-center justify-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center justify-center gap-2">
               GM-CUTZ <span className="gold-gradient-text">TERMINAL</span>
             </h1>
-            <p className="text-xs uppercase tracking-widest text-zinc-400 mt-2 font-mono">
+            <p className="text-[10px] sm:text-xs uppercase tracking-widest text-zinc-400 mt-1 font-mono">
               Salon Cockpit • Master Zugang
             </p>
           </div>
 
-          {/* Login Card */}
-          <div className="website-card-active rounded-3xl p-7 border border-[#e8ba84]/30 shadow-2xl backdrop-blur-2xl">
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-white/10">
-              <div className="p-2.5 rounded-2xl bg-[#e8ba84]/10 text-[#e8ba84] border border-[#e8ba84]/25">
-                <Lock className="w-5 h-5" />
+          <div className="website-card-active rounded-3xl p-5 sm:p-7 border border-[#e8ba84]/30 shadow-2xl backdrop-blur-2xl">
+            <div className="flex items-center gap-3 mb-5 pb-4 border-b border-white/10">
+              <div className="p-2 sm:p-2.5 rounded-2xl bg-[#e8ba84]/10 text-[#e8ba84] border border-[#e8ba84]/25">
+                <Lock className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-white">Sicherheits-Authentifizierung</h2>
-                <p className="text-xs text-zinc-400">Master-Passwort zum Entsperren eingeben</p>
+                <h2 className="text-xs sm:text-sm font-bold text-white">Sicherheits-Authentifizierung</h2>
+                <p className="text-[11px] sm:text-xs text-zinc-400">Master-Passwort eingeben</p>
               </div>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-5">
+            <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-2">
+                <label className="block text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-2">
                   Master-Passwort
                 </label>
                 <div className="relative">
-                  <Key className="w-5 h-5 text-zinc-500 absolute left-4 top-1/2 -translate-y-1/2" />
+                  <Key className="w-4 h-4 sm:w-5 sm:h-5 text-zinc-500 absolute left-4 top-1/2 -translate-y-1/2" />
                   <input
                     type={showPassword ? "text" : "password"}
                     autoFocus
-                    placeholder="Passwort eingeben..."
+                    placeholder="Passwort..."
                     value={passwordInput}
                     onChange={(e) => setPasswordInput(e.target.value)}
-                    className="w-full h-14 pl-12 pr-12 rounded-2xl bg-[#09090c] border border-white/15 text-white placeholder-zinc-600 font-mono text-base focus:outline-none focus:border-[#e8ba84] transition-all"
+                    className="w-full h-12 sm:h-14 pl-11 sm:pl-12 pr-11 sm:pr-12 rounded-2xl bg-[#09090c] border border-white/15 text-white placeholder-zinc-600 font-mono text-sm sm:text-base focus:outline-none focus:border-[#e8ba84] transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
                   >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    {showPassword ? <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Eye className="w-4 h-4 sm:w-5 sm:h-5" />}
                   </button>
                 </div>
               </div>
 
               {authError && (
-                <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2 font-medium">
+                <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2 font-medium">
                   <AlertTriangle className="w-4 h-4 flex-shrink-0 text-rose-400" />
                   <span>{authError}</span>
                 </div>
@@ -778,24 +769,18 @@ export default function GioModularStudio() {
               <button
                 type="submit"
                 disabled={isVerifyingAuth}
-                className="w-full h-14 bg-gradient-to-r from-[#e8ba84] to-[#c99756] hover:brightness-110 text-[#070708] font-black text-sm uppercase tracking-wider rounded-2xl shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50"
+                className="w-full h-12 sm:h-14 bg-gradient-to-r from-[#e8ba84] to-[#c99756] hover:brightness-110 text-[#070708] font-black text-xs sm:text-sm uppercase tracking-wider rounded-2xl shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50"
               >
                 {isVerifyingAuth ? (
-                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                 ) : (
                   <>
-                    <Unlock className="w-5 h-5 stroke-[2.5]" />
+                    <Unlock className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
                     <span>Terminal Entsperren</span>
                   </>
                 )}
               </button>
             </form>
-
-            <div className="mt-6 pt-4 border-t border-white/5 text-center">
-              <span className="text-[11px] text-zinc-500 font-mono">
-                iPad Kiosk Modus • Sitzung bleibt gespeichert
-              </span>
-            </div>
           </div>
         </div>
       </main>
@@ -803,67 +788,44 @@ export default function GioModularStudio() {
   }
 
   // =========================================================================
-  // HAUPT-ANWENDUNG (AUTHENTIFIZIERT)
+  // HAUPT-ANWENDUNG (MOBIL-OPTIMIERT)
   // =========================================================================
   return (
     <main className="min-h-screen bg-[#070708] hero-halo text-white flex flex-col md:flex-row font-sans selection:bg-[#e8ba84] selection:text-black">
       
-      {/* ========================================================================= */}
-      {/* IPAD SIDEBAR NAVIGATION                                                   */}
-      {/* ========================================================================= */}
-      <aside className="w-full md:w-64 bg-[#0a0a0d] border-b md:border-b-0 md:border-r border-white/10 flex flex-col justify-between p-4 md:p-6 shrink-0 z-30">
+      {/* DESKTOP & IPAD SIDEBAR (Auf Handy ausgeblendet) */}
+      <aside className="hidden md:flex md:w-64 bg-[#0a0a0d] border-r border-white/10 flex-col justify-between p-6 shrink-0 z-30">
         <div>
-          {/* Studio Brand Header */}
-          <div className="flex items-center justify-between md:block mb-6 md:mb-8">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#1c1c24] to-[#0e0e11] border border-[#e8ba84]/30 shadow-lg flex items-center justify-center">
-                <Scissors className="w-5 h-5 text-[#e8ba84]" />
-              </div>
-              <div>
-                <h1 className="font-black text-base tracking-tight leading-none text-white">
-                  GM-CUTZ <span className="text-[#e8ba84]">STUDIO</span>
-                </h1>
-                <p className="text-[10px] text-zinc-400 font-mono uppercase tracking-widest mt-1">
-                  iPad Terminal
-                </p>
-              </div>
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#1c1c24] to-[#0e0e11] border border-[#e8ba84]/30 shadow-lg flex items-center justify-center">
+              <Scissors className="w-5 h-5 text-[#e8ba84]" />
             </div>
-
-            {/* Mobile Status Punkt */}
-            <div className="md:hidden flex items-center gap-2">
-              <div
-                className={`w-2.5 h-2.5 rounded-full ${
-                  studioStatus === "open"
-                    ? "bg-emerald-400 animate-pulse"
-                    : studioStatus === "pause"
-                    ? "bg-amber-400"
-                    : "bg-rose-500"
-                }`}
-              />
+            <div>
+              <h1 className="font-black text-base tracking-tight leading-none text-white">
+                GM-CUTZ <span className="text-[#e8ba84]">STUDIO</span>
+              </h1>
+              <p className="text-[10px] text-zinc-400 font-mono uppercase tracking-widest mt-1">
+                Salon Terminal
+              </p>
             </div>
           </div>
 
-          {/* Live Uhrzeit */}
           <div className="mb-6 p-4 rounded-2xl bg-[#101014] border border-white/10">
             <div className="text-[10px] uppercase font-mono tracking-widest text-zinc-400 flex items-center gap-1.5 mb-1">
               <Clock className="w-3.5 h-3.5 text-[#e8ba84]" />
               <span>Studio Zeit</span>
             </div>
             <div className="text-2xl font-black font-mono tracking-tight text-white">
-              {currentTime.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              {currentTime.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
             </div>
             <div className="text-xs text-zinc-400 mt-0.5">
-              {currentTime.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
+              {currentTime.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "short" })}
             </div>
           </div>
 
-          {/* Module Navigation Tabs */}
           <div className="space-y-2">
             <button
-              onClick={() => {
-                setActiveModule("dashboard");
-                playSound("click");
-              }}
+              onClick={() => { setActiveModule("dashboard"); playSound("click"); }}
               className={`w-full h-12 rounded-2xl px-4 flex items-center gap-3 text-sm font-bold transition-all ${
                 activeModule === "dashboard"
                   ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] shadow-lg shadow-[#e8ba84]/15"
@@ -871,14 +833,11 @@ export default function GioModularStudio() {
               }`}
             >
               <LayoutDashboard className="w-5 h-5 flex-shrink-0" />
-              <span>Studio Dashboard</span>
+              <span>Studio Cockpit</span>
             </button>
 
             <button
-              onClick={() => {
-                setActiveModule("calendar");
-                playSound("click");
-              }}
+              onClick={() => { setActiveModule("calendar"); playSound("click"); }}
               className={`w-full h-12 rounded-2xl px-4 flex items-center gap-3 text-sm font-bold transition-all ${
                 activeModule === "calendar"
                   ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] shadow-lg shadow-[#e8ba84]/15"
@@ -890,10 +849,7 @@ export default function GioModularStudio() {
             </button>
 
             <button
-              onClick={() => {
-                setActiveModule("clients");
-                playSound("click");
-              }}
+              onClick={() => { setActiveModule("clients"); playSound("click"); }}
               className={`w-full h-12 rounded-2xl px-4 flex items-center gap-3 text-sm font-bold transition-all ${
                 activeModule === "clients"
                   ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] shadow-lg shadow-[#e8ba84]/15"
@@ -901,53 +857,37 @@ export default function GioModularStudio() {
               }`}
             >
               <Users className="w-5 h-5 flex-shrink-0" />
-              <span>Buchungsbuch & Kartei</span>
+              <span>Buchungsbuch</span>
             </button>
           </div>
         </div>
 
-        {/* Sidebar Footer: Salon Steuerung & Logout */}
         <div className="mt-8 pt-4 border-t border-white/10 space-y-3">
           <div>
             <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-400 block mb-1.5">
-              Salon Betriebsmodus
+              Betriebsmodus
             </span>
             <div className="grid grid-cols-3 gap-1 bg-[#121216] p-1 rounded-xl border border-white/10">
               <button
-                onClick={() => {
-                  setStudioStatus("open");
-                  playSound("click");
-                }}
+                onClick={() => { setStudioStatus("open"); playSound("click"); }}
                 className={`py-1.5 text-[11px] font-bold rounded-lg transition-all ${
-                  studioStatus === "open"
-                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                    : "text-zinc-400 hover:text-zinc-200"
+                  studioStatus === "open" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "text-zinc-400"
                 }`}
               >
                 Aktiv
               </button>
               <button
-                onClick={() => {
-                  setStudioStatus("pause");
-                  playSound("click");
-                }}
+                onClick={() => { setStudioStatus("pause"); playSound("click"); }}
                 className={`py-1.5 text-[11px] font-bold rounded-lg transition-all ${
-                  studioStatus === "pause"
-                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                    : "text-zinc-400 hover:text-zinc-200"
+                  studioStatus === "pause" ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "text-zinc-400"
                 }`}
               >
                 Pause
               </button>
               <button
-                onClick={() => {
-                  setStudioStatus("closed");
-                  playSound("click");
-                }}
+                onClick={() => { setStudioStatus("closed"); playSound("click"); }}
                 className={`py-1.5 text-[11px] font-bold rounded-lg transition-all ${
-                  studioStatus === "closed"
-                    ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
-                    : "text-zinc-400 hover:text-zinc-200"
+                  studioStatus === "closed" ? "bg-rose-500/20 text-rose-400 border border-rose-500/30" : "text-zinc-400"
                 }`}
               >
                 Zu
@@ -958,24 +898,22 @@ export default function GioModularStudio() {
           <div className="flex items-center justify-between pt-2">
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
-              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white text-xs flex items-center gap-1.5 transition-all"
+              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 text-xs"
               title="Ton an/aus"
             >
               {soundEnabled ? <Volume2 className="w-4 h-4 text-[#e8ba84]" /> : <VolumeX className="w-4 h-4 text-zinc-500" />}
             </button>
-
             <button
               onClick={toggleFullscreen}
-              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white text-xs flex items-center gap-1.5 transition-all"
-              title="Vollbildmodus fürs iPad"
+              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 text-xs"
+              title="Vollbild"
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
-
             <button
               onClick={handleLogout}
-              className="p-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs flex items-center gap-1.5 transition-all"
-              title="Terminal sperren"
+              className="p-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs"
+              title="Sperren"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -983,31 +921,37 @@ export default function GioModularStudio() {
         </div>
       </aside>
 
-      {/* ========================================================================= */}
-      {/* HAUPTINHALT DER MODULE                                                    */}
-      {/* ========================================================================= */}
-      <section className="flex-1 flex flex-col min-w-0 overflow-y-auto max-h-screen">
+      {/* HAUPTINHALT */}
+      <section className="flex-1 flex flex-col min-w-0 overflow-y-auto max-h-screen pb-24 md:pb-8">
         
-        {/* Top Header Bar */}
-        <header className="sticky top-0 z-20 bg-[#070708]/90 backdrop-blur-xl border-b border-white/10 px-4 md:px-8 py-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-black uppercase tracking-wider text-white">
-                {activeModule === "dashboard" && "Salon Cockpit"}
-                {activeModule === "calendar" && "Terminkalender"}
-                {activeModule === "clients" && "Kundenkartei & Buchungsbuch"}
-              </span>
-              <span className="hidden sm:inline-block text-xs px-2.5 py-0.5 rounded-full bg-white/5 text-zinc-400 font-mono">
-                {bookings.length} Buchungen Total
-              </span>
+        {/* COMPACT HEADER (Für Handy & Desktop) */}
+        <header className="sticky top-0 z-20 bg-[#070708]/95 backdrop-blur-xl border-b border-white/10 px-3.5 sm:px-6 md:px-8 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-8 h-8 rounded-xl bg-[#1c1c24] border border-[#e8ba84]/30 flex items-center justify-center md:hidden">
+              <Scissors className="w-4 h-4 text-[#e8ba84]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-white">
+                  {activeModule === "dashboard" && "Salon Cockpit"}
+                  {activeModule === "calendar" && "Terminkalender"}
+                  {activeModule === "clients" && "Kundenkartei"}
+                </span>
+                <span className={`w-2 h-2 rounded-full ${
+                  studioStatus === "open" ? "bg-emerald-400 animate-pulse" : studioStatus === "pause" ? "bg-amber-400" : "bg-rose-500"
+                }`} />
+              </div>
+              <div className="text-[10px] text-zinc-400 font-mono hidden xs:block">
+                {currentTime.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr • {bookings.length} Termine
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => fetchBookings(true)}
               disabled={refreshing}
-              className="h-10 px-3.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-zinc-300 flex items-center gap-2 active:scale-95 transition-all"
+              className="h-9 px-2.5 sm:px-3.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-zinc-300 flex items-center gap-1.5 active:scale-95"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-[#e8ba84]" : ""}`} />
               <span className="hidden sm:inline">Sync</span>
@@ -1027,181 +971,164 @@ export default function GioModularStudio() {
                 });
                 setIsModalOpen(true);
               }}
-              className="h-10 px-4 bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] font-black text-xs rounded-2xl shadow-lg flex items-center gap-2 active:scale-95"
+              className="h-9 px-3 sm:px-4 bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] font-black text-xs rounded-xl shadow-lg flex items-center gap-1.5 active:scale-95"
             >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>Neuer Termin</span>
+              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+              <span className="text-xs">Termin</span>
             </button>
           </div>
         </header>
 
-        {/* Globaler Benachrichtigungs-Banner */}
         {notification && (
-          <div className="mx-4 md:mx-8 mt-4 p-4 rounded-2xl bg-[#e8ba84]/15 border border-[#e8ba84]/30 text-[#fff6e8] text-sm flex items-center justify-between shadow-2xl animate-pulse">
-            <div className="flex items-center gap-2.5">
-              <Sparkles className="w-5 h-5 text-[#e8ba84]" />
+          <div className="mx-3.5 sm:mx-6 md:mx-8 mt-3 p-3 sm:p-4 rounded-2xl bg-[#e8ba84]/15 border border-[#e8ba84]/30 text-[#fff6e8] text-xs sm:text-sm flex items-center justify-between shadow-2xl">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#e8ba84] shrink-0" />
               <span className="font-bold">{notification}</span>
             </div>
-            <button onClick={() => setNotification(null)} className="text-zinc-400 hover:text-white">
+            <button onClick={() => setNotification(null)} className="text-zinc-400 hover:text-white p-1">
               <X className="w-4 h-4" />
             </button>
           </div>
         )}
 
-        {/* Hauptmodul-Inhalt */}
-        <div className="p-4 md:p-8 space-y-6">
+        <div className="p-3.5 sm:p-6 md:p-8 space-y-5 sm:space-y-6">
 
           {/* ========================================================================= */}
-          {/* MODUL 1: STUDIO DASHBOARD (MIT WOCHEN-TERMINE & VOLLE KONTROLLE)           */}
+          {/* MODUL 1: DASHBOARD (MOBIL OPTIMIERT)                                      */}
           {/* ========================================================================= */}
           {activeModule === "dashboard" && (
-            <div className="space-y-6">
+            <div className="space-y-5 sm:space-y-6">
               
-              {/* Salon KPI Kacheln */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                
-                {/* Kunden Heute */}
-                <div className="website-card rounded-3xl p-5 border border-white/10">
-                  <div className="flex items-center justify-between text-zinc-400 mb-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#e8ba84]">Kunden Heute</span>
-                    <Scissors className="w-4 h-4 text-[#e8ba84]" />
+              {/* KPI Kacheln (Kompakt auf Handy, 2-Spaltig) */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+                <div className="website-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-white/10">
+                  <div className="flex items-center justify-between text-zinc-400 mb-0.5">
+                    <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#e8ba84]">Kunden Heute</span>
+                    <Scissors className="w-3.5 h-3.5 text-[#e8ba84]" />
                   </div>
-                  <div className="text-3xl font-black text-white">{todayMetrics.totalClients}</div>
-                  <div className="text-xs text-zinc-400 mt-1">
-                    {todayMetrics.completedCount} bedient • {todayMetrics.openCount} offen
+                  <div className="text-2xl sm:text-3xl font-black text-white">{todayMetrics.totalClients}</div>
+                  <div className="text-[10px] sm:text-xs text-zinc-400 mt-0.5">
+                    {todayMetrics.completedCount} fertig • {todayMetrics.openCount} offen
                   </div>
                 </div>
 
-                {/* Behandlungszeit Heute */}
-                <div className="website-card rounded-3xl p-5 border border-white/10">
-                  <div className="flex items-center justify-between text-zinc-400 mb-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">Arbeitszeit Heute</span>
-                    <Clock3 className="w-4 h-4 text-amber-400" />
+                <div className="website-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-white/10">
+                  <div className="flex items-center justify-between text-zinc-400 mb-0.5">
+                    <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-400">Arbeitszeit</span>
+                    <Clock3 className="w-3.5 h-3.5 text-amber-400" />
                   </div>
-                  <div className="text-3xl font-black text-amber-300 font-mono">
+                  <div className="text-2xl sm:text-3xl font-black text-amber-300 font-mono">
                     {todayMetrics.treatmentTimeFormatted}
                   </div>
-                  <div className="text-xs text-zinc-400 mt-1">
-                    Reine Schnittzeit im Salon
+                  <div className="text-[10px] sm:text-xs text-zinc-400 mt-0.5">
+                    Reine Schnittzeit
                   </div>
                 </div>
 
-                {/* Aktueller Stuhl-Status */}
-                <div className="website-card rounded-3xl p-5 border border-white/10">
-                  <div className="flex items-center justify-between text-zinc-400 mb-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-sky-400">Barbier-Stuhl</span>
-                    <Scissors className="w-4 h-4 text-sky-400" />
+                <div className="website-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-white/10">
+                  <div className="flex items-center justify-between text-zinc-400 mb-0.5">
+                    <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-sky-400">Stuhl-Status</span>
+                    <Scissors className="w-3.5 h-3.5 text-sky-400" />
                   </div>
-                  <div className="text-3xl font-black text-sky-300">
+                  <div className="text-2xl sm:text-3xl font-black text-sky-300">
                     {todayMetrics.inProgressBooking ? "Belegt" : "Frei"}
                   </div>
-                  <div className="text-xs text-zinc-400 mt-1">
-                    {todayMetrics.inProgressBooking
-                      ? todayMetrics.inProgressBooking.name
-                      : "Bereit für nächsten Kunden"}
+                  <div className="text-[10px] sm:text-xs text-zinc-400 mt-0.5 truncate">
+                    {todayMetrics.inProgressBooking ? todayMetrics.inProgressBooking.name : "Bereit"}
                   </div>
                 </div>
 
-                {/* Termine Diese Ganze Woche */}
-                <div className="website-card rounded-3xl p-5 border border-white/10">
-                  <div className="flex items-center justify-between text-zinc-400 mb-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">Ganze Woche Total</span>
-                    <CalendarCheck className="w-4 h-4 text-emerald-400" />
+                <div className="website-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-white/10">
+                  <div className="flex items-center justify-between text-zinc-400 mb-0.5">
+                    <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-400">Woche Total</span>
+                    <CalendarCheck className="w-3.5 h-3.5 text-emerald-400" />
                   </div>
-                  <div className="text-3xl font-black text-white">
+                  <div className="text-2xl sm:text-3xl font-black text-white">
                     {totalWeekAppointmentsCount} Kunden
                   </div>
-                  <div className="text-xs text-zinc-400 mt-1">Montag bis Sonntag</div>
+                  <div className="text-[10px] sm:text-xs text-zinc-400 mt-0.5">Mo - So gebucht</div>
                 </div>
               </div>
 
-              {/* DASHBOARD KONTROLLZENTRALE: LIVE STUHL & WOCHEN-TERMINE */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* GRID: SPOTLIGHT & WOCHENLISTE */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
                 
-                {/* Spalte Links (5): LIVE STUHL-CONTROLLER & SPOTLIGHT */}
-                <div className="lg:col-span-5 space-y-5">
+                {/* Spalte Links: STUHL-CONTROLLER & SPOTLIGHT */}
+                <div className="lg:col-span-5 space-y-4 sm:space-y-5">
                   
-                  {/* LIVE AUF DEM STUHL */}
                   {todayMetrics.inProgressBooking ? (
                     <div
                       onClick={() => openDetailDrawer(todayMetrics.inProgressBooking!)}
-                      className="website-card-active rounded-3xl p-6 border border-sky-400/40 shadow-2xl relative overflow-hidden cursor-pointer"
+                      className="website-card-active rounded-3xl p-4 sm:p-6 border border-sky-400/40 shadow-2xl relative overflow-hidden cursor-pointer"
                     >
-                      <div className="absolute top-0 right-0 px-4 py-1.5 bg-sky-500/20 text-sky-300 border-b border-l border-sky-400/30 text-xs font-mono font-bold uppercase rounded-bl-2xl flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
-                        <span>Schnitt Läuft Gerade</span>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs uppercase font-mono tracking-wider text-sky-400 font-bold flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
+                          <span>Aktuell im Stuhl</span>
+                        </span>
+                        <span className="text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded-full font-mono font-bold">
+                          LIVE
+                        </span>
                       </div>
 
-                      <div className="mt-2 mb-4">
-                        <span className="text-xs uppercase font-mono tracking-widest text-sky-400 font-bold">
-                          Aktuell im Stuhl
-                        </span>
-                        <h3 className="text-2xl sm:text-3xl font-black text-white mt-1">
+                      <div className="mb-3">
+                        <h3 className="text-xl sm:text-2xl font-black text-white">
                           {todayMetrics.inProgressBooking.name}
                         </h3>
                         <p className="text-xs text-zinc-400 font-mono mt-0.5">
-                          Termin: {todayMetrics.inProgressBooking.time} Uhr • Dauer: {getServiceDuration(todayMetrics.inProgressBooking.service, todayMetrics.inProgressBooking.addons)}
+                          Termin: {todayMetrics.inProgressBooking.time} Uhr • {getServiceDuration(todayMetrics.inProgressBooking.service, todayMetrics.inProgressBooking.addons)}
                         </p>
                       </div>
 
-                      <div className="p-3.5 rounded-2xl bg-[#0a0a0e] border border-white/10 mb-4">
-                        <div className="text-sm font-bold text-white">
-                          {todayMetrics.inProgressBooking.service}
-                        </div>
+                      <div className="p-3 rounded-2xl bg-[#0a0a0e] border border-white/10 mb-3 text-xs">
+                        <div className="font-bold text-white">{todayMetrics.inProgressBooking.service}</div>
                         {todayMetrics.inProgressBooking.addons.length > 0 && (
-                          <div className="text-xs text-[#e8ba84] mt-1">
+                          <div className="text-[#e8ba84] mt-1 text-[11px]">
                             Extras: {todayMetrics.inProgressBooking.addons.join(", ")}
-                          </div>
-                        )}
-                        {todayMetrics.inProgressBooking.notes && (
-                          <div className="text-xs text-zinc-300 mt-2 p-2 bg-white/5 rounded-xl border border-white/5">
-                            "{todayMetrics.inProgressBooking.notes}"
                           </div>
                         )}
                       </div>
 
-                      {/* Stuhl-Kontrolle Aktionen */}
-                      <div className="space-y-2.5" onClick={(e) => e.stopPropagation()}>
+                      <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
                         <button
                           disabled={updatingId === todayMetrics.inProgressBooking.id}
                           onClick={() => handleStatusChange(todayMetrics.inProgressBooking!.id, "completed")}
-                          className="w-full h-12 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-2xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg"
+                          className="w-full h-11 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-2xl text-xs font-black flex items-center justify-center gap-2 active:scale-95"
                         >
-                          <Check className="w-5 h-5 text-emerald-400" />
+                          <Check className="w-4 h-4 text-emerald-400" />
                           <span>Schnitt Fertig • Stuhl Freigeben</span>
                         </button>
 
                         <div className="grid grid-cols-2 gap-2">
                           <button
                             onClick={() => handleShiftAppointmentTime(todayMetrics.inProgressBooking!.id, 15)}
-                            className="h-10 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                            className="h-9 bg-amber-500/10 text-amber-300 border border-amber-500/20 rounded-xl text-xs font-bold flex items-center justify-center gap-1 active:scale-95"
                           >
                             <FastForward className="w-3.5 h-3.5" />
-                            <span>+15 Min Mehr</span>
+                            <span>+15 Min</span>
                           </button>
 
                           <button
                             onClick={() => openDetailDrawer(todayMetrics.inProgressBooking!)}
-                            className="h-10 bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/10 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                            className="h-9 bg-white/5 text-zinc-300 border border-white/10 rounded-xl text-xs font-bold flex items-center justify-center gap-1 active:scale-95"
                           >
                             <Edit3 className="w-3.5 h-3.5 text-[#e8ba84]" />
-                            <span>Details & Notiz</span>
+                            <span>Details</span>
                           </button>
                         </div>
                       </div>
                     </div>
                   ) : (
-                    /* KEIN KUNDE IM STUHL -> NÄCHSTER KUNDE SPOTLIGHT */
                     <div
                       onClick={() => todayMetrics.nextUpcoming && openDetailDrawer(todayMetrics.nextUpcoming)}
-                      className="website-card-active rounded-3xl p-6 border border-[#e8ba84]/40 shadow-2xl cursor-pointer"
+                      className="website-card-active rounded-3xl p-4 sm:p-6 border border-[#e8ba84]/40 shadow-2xl cursor-pointer"
                     >
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-bold uppercase tracking-wider text-[#e8ba84] flex items-center gap-1.5">
-                          <Scissors className="w-4 h-4" />
-                          <span>Nächster Kunde im Spotlight</span>
+                      <div className="flex items-center justify-between mb-2 sm:mb-3">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-[#e8ba84] flex items-center gap-1.5">
+                          <Scissors className="w-3.5 h-3.5" />
+                          <span>Nächster Kunde</span>
                         </span>
-                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">
                           Heute
                         </span>
                       </div>
@@ -1209,42 +1136,29 @@ export default function GioModularStudio() {
                       {todayMetrics.nextUpcoming ? (
                         <div>
                           <div className="flex items-baseline justify-between mt-1">
-                            <h3 className="text-2xl sm:text-3xl font-black text-white">
+                            <h3 className="text-xl sm:text-2xl font-black text-white">
                               {todayMetrics.nextUpcoming.name}
                             </h3>
-                            <div className="font-mono text-lg font-bold text-[#e8ba84] bg-black/50 px-3 py-1 rounded-xl border border-white/10">
+                            <div className="font-mono text-sm sm:text-base font-bold text-[#e8ba84] bg-black/50 px-2.5 py-0.5 rounded-xl border border-white/10">
                               {todayMetrics.nextUpcoming.time} Uhr
                             </div>
                           </div>
 
-                          <div className="mt-3 p-3.5 rounded-2xl bg-[#0f0f13] border border-white/10">
-                            <div className="text-sm font-bold text-[#fff6e8]">
-                              {todayMetrics.nextUpcoming.service}
-                            </div>
-                            {todayMetrics.nextUpcoming.addons && todayMetrics.nextUpcoming.addons.length > 0 && (
-                              <div className="text-xs text-zinc-400 mt-1">
-                                Extras: {todayMetrics.nextUpcoming.addons.join(", ")}
-                              </div>
-                            )}
-                            <div className="mt-2 text-xs font-mono text-zinc-400">
+                          <div className="mt-2.5 p-3 rounded-2xl bg-[#0f0f13] border border-white/10 text-xs">
+                            <div className="font-bold text-[#fff6e8]">{todayMetrics.nextUpcoming.service}</div>
+                            <div className="text-zinc-400 mt-0.5 font-mono text-[11px]">
                               Dauer: {getServiceDuration(todayMetrics.nextUpcoming.service, todayMetrics.nextUpcoming.addons)}
                             </div>
                           </div>
 
-                          {todayMetrics.nextUpcoming.notes && (
-                            <div className="mt-3 text-xs text-amber-200/90 bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20">
-                              Notiz: "{todayMetrics.nextUpcoming.notes}"
-                            </div>
-                          )}
-
-                          <div className="mt-5 space-y-2.5" onClick={(e) => e.stopPropagation()}>
+                          <div className="mt-3.5 space-y-2" onClick={(e) => e.stopPropagation()}>
                             <button
                               disabled={updatingId === todayMetrics.nextUpcoming.id}
                               onClick={() => handleStatusChange(todayMetrics.nextUpcoming!.id, "in_progress")}
-                              className="w-full h-12 bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] rounded-2xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl"
+                              className="w-full h-11 bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] rounded-2xl text-xs font-black flex items-center justify-center gap-1.5 active:scale-95 shadow-xl"
                             >
-                              <Scissors className="w-5 h-5" />
-                              <span>Auf den Stuhl setzen (Schnitt starten)</span>
+                              <Scissors className="w-4 h-4" />
+                              <span>Auf den Stuhl setzen (Start)</span>
                             </button>
 
                             <div className="grid grid-cols-2 gap-2">
@@ -1258,36 +1172,34 @@ export default function GioModularStudio() {
                                 )}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="h-10 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+                                className="h-9 bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5"
                               >
-                                <MessageCircle className="w-4 h-4 text-emerald-400" />
+                                <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
                                 <span>WhatsApp</span>
                               </a>
 
                               <button
                                 onClick={() => openDetailDrawer(todayMetrics.nextUpcoming!)}
-                                className="h-10 bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/10 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+                                className="h-9 bg-white/5 text-zinc-300 border border-white/10 rounded-xl text-xs font-bold flex items-center justify-center gap-1"
                               >
                                 <Edit3 className="w-3.5 h-3.5 text-[#e8ba84]" />
-                                <span>Details ansehen</span>
+                                <span>Details</span>
                               </button>
                             </div>
                           </div>
                         </div>
                       ) : (
-                        <div className="py-10 text-center text-zinc-400">
-                          Keine weiteren anstehenden Kunden für heute in der Schlange.
+                        <div className="py-6 text-center text-zinc-400 text-xs">
+                          Keine offenen Kunden für heute.
                         </div>
                       )}
                     </div>
                   )}
 
-                  {/* SCHNELL-AKTIONEN BAR */}
-                  <div className="website-card rounded-3xl p-5 border border-white/10 space-y-2.5">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
-                      Salon Schnell-Aktionen
-                    </h4>
-
+                  {/* SCHNELL-AKTIONEN */}
+                  <div className="website-card rounded-3xl p-4 sm:p-5 border border-white/10 space-y-2">
+                    <h4 className="text-[10px] uppercase font-bold tracking-wider text-zinc-400 mb-1">Schnell-Aktionen</h4>
+                    
                     <button
                       onClick={() => {
                         setModalMode("customer");
@@ -1302,131 +1214,99 @@ export default function GioModularStudio() {
                         });
                         setIsModalOpen(true);
                       }}
-                      className="w-full h-11 bg-[#141418] hover:bg-[#1c1c22] border border-white/10 rounded-2xl text-xs font-bold px-4 flex items-center justify-between text-zinc-200"
+                      className="w-full h-10 bg-[#141418] hover:bg-[#1c1c22] border border-white/10 rounded-xl text-xs font-bold px-3.5 flex items-center justify-between text-zinc-200"
                     >
                       <span className="flex items-center gap-2">
-                        <UserCheck className="w-4 h-4 text-[#e8ba84]" />
+                        <UserCheck className="w-3.5 h-3.5 text-[#e8ba84]" />
                         <span>Walk-In Express Check-in</span>
                       </span>
-                      <span className="text-[#e8ba84] font-mono">+ Direkt</span>
+                      <span className="text-[#e8ba84] font-mono text-[11px]">+ Direkt</span>
                     </button>
 
                     <button
                       onClick={() => handleQuickPause(30)}
-                      className="w-full h-11 bg-[#141418] hover:bg-[#1c1c22] border border-white/10 rounded-2xl text-xs font-bold px-4 flex items-center justify-between text-zinc-200"
+                      className="w-full h-10 bg-[#141418] hover:bg-[#1c1c22] border border-white/10 rounded-xl text-xs font-bold px-3.5 flex items-center justify-between text-zinc-200"
                     >
                       <span className="flex items-center gap-2">
-                        <Coffee className="w-4 h-4 text-amber-400" />
+                        <Coffee className="w-3.5 h-3.5 text-amber-400" />
                         <span>30 Min Sofort-Pause sperren</span>
                       </span>
-                      <span className="text-amber-400 font-mono">☕ 30m</span>
+                      <span className="text-amber-400 font-mono text-[11px]">☕ 30m</span>
                     </button>
                   </div>
                 </div>
 
-                {/* Spalte Rechts (7): TERMINE DER GANZEN WOCHE (WOCHEN-ABLAUF) */}
+                {/* Spalte Rechts: WOCHEN-ABLAUF */}
                 <div className="lg:col-span-7">
-                  <div className="website-card rounded-3xl p-6 border border-white/10 h-full flex flex-col">
+                  <div className="website-card rounded-3xl p-4 sm:p-6 border border-white/10 flex flex-col">
                     
-                    {/* Header der Wochenübersicht */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-white/10">
+                    <div className="flex items-center justify-between gap-2 mb-3 pb-3 border-b border-white/10">
                       <div>
-                        <h3 className="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
+                        <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
                           <CalendarCheck className="w-4 h-4 text-[#e8ba84]" />
-                          <span>Wochenübersicht ({totalWeekAppointmentsCount} Termine diese Woche)</span>
+                          <span>Wochenübersicht ({totalWeekAppointmentsCount})</span>
                         </h3>
-                        <p className="text-xs text-zinc-400 mt-0.5">
-                          Tippe auf einen Kunden für alle Details, Schnittkartei & Verschiebung
-                        </p>
                       </div>
 
-                      <div className="flex items-center gap-1 bg-[#101014] p-1 rounded-2xl border border-white/10 self-start sm:self-auto">
+                      <div className="flex items-center gap-1 bg-[#101014] p-1 rounded-xl border border-white/10">
                         <button
-                          onClick={() => {
-                            setDashboardDayFilter("all");
-                            playSound("click");
-                          }}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                            dashboardDayFilter === "all"
-                              ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708]"
-                              : "text-zinc-400 hover:text-white"
+                          onClick={() => { setDashboardDayFilter("all"); playSound("click"); }}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                            dashboardDayFilter === "all" ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708]" : "text-zinc-400"
                           }`}
                         >
-                          Ganze Woche
+                          Woche
                         </button>
                         <button
-                          onClick={() => {
-                            setDashboardDayFilter(todayStr);
-                            playSound("click");
-                          }}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                            dashboardDayFilter === todayStr
-                              ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708]"
-                              : "text-zinc-400 hover:text-white"
+                          onClick={() => { setDashboardDayFilter(todayStr); playSound("click"); }}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                            dashboardDayFilter === todayStr ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708]" : "text-zinc-400"
                           }`}
                         >
-                          Nur Heute
+                          Heute
                         </button>
                       </div>
                     </div>
 
-                    {/* Wochentag-Filter Buttons */}
-                    <div className="grid grid-cols-7 gap-1.5 mb-4">
+                    {/* Wochentag-Leiste: Horizontal scrollbar auf Handy */}
+                    <div className="flex sm:grid sm:grid-cols-7 gap-1.5 mb-3 overflow-x-auto pb-1 no-scrollbar">
                       {currentWeekDays.map((day) => {
                         const isFiltered = dashboardDayFilter === day.dateStr;
                         return (
                           <button
                             key={day.dateStr}
-                            onClick={() => {
-                              setDashboardDayFilter(day.dateStr);
-                              playSound("click");
-                            }}
-                            className={`p-2 rounded-xl border text-center transition-all ${
+                            onClick={() => { setDashboardDayFilter(day.dateStr); playSound("click"); }}
+                            className={`p-2 rounded-xl border text-center transition-all shrink-0 min-w-[50px] sm:min-w-0 ${
                               isFiltered
                                 ? "bg-[#e8ba84] text-black border-[#e8ba84] font-black shadow-lg"
                                 : day.isToday
                                 ? "bg-[#16161e] border-white/30 text-white font-bold"
-                                : "bg-[#0f0f13] hover:bg-[#141418] border-white/5 text-zinc-400"
+                                : "bg-[#0f0f13] border-white/5 text-zinc-400"
                             }`}
                           >
-                            <div className="text-[10px] uppercase">{day.dayName}</div>
-                            <div className="text-xs font-mono font-bold mt-0.5">{day.dayNumber}</div>
-                            <div className="text-[9px] mt-0.5 opacity-80">
-                              {day.bookings.length}
-                            </div>
+                            <div className="text-[9px] sm:text-[10px] uppercase font-bold">{day.dayName}</div>
+                            <div className="text-xs font-mono font-bold">{day.dayNumber}</div>
+                            <div className="text-[9px] opacity-80">{day.bookings.length}</div>
                           </button>
                         );
                       })}
                     </div>
 
-                    {/* Liste der Termine für die Woche */}
-                    <div className="flex-1 space-y-4 overflow-y-auto max-h-[580px] pr-1">
+                    {/* Liste der Termine */}
+                    <div className="space-y-3 overflow-y-auto max-h-[500px] pr-0.5">
                       {currentWeekDays
                         .filter((day) => dashboardDayFilter === "all" || dashboardDayFilter === day.dateStr)
                         .map((day) => (
-                          <div key={day.dateStr} className="space-y-2">
-                            {/* Tag-Trennlinie & Überschrift */}
-                            <div className="flex items-center justify-between pt-2 pb-1 border-b border-white/5">
-                              <span
-                                className={`text-xs font-black uppercase tracking-wider flex items-center gap-2 ${
-                                  day.isToday ? "text-[#e8ba84]" : "text-zinc-300"
-                                }`}
-                              >
-                                <span>{day.dayFullDate}</span>
-                                {day.isToday && (
-                                  <span className="text-[9px] bg-[#e8ba84]/20 text-[#e8ba84] px-2 py-0.5 rounded-full border border-[#e8ba84]/30 font-bold">
-                                    HEUTE
-                                  </span>
-                                )}
+                          <div key={day.dateStr} className="space-y-1.5">
+                            <div className="flex items-center justify-between pt-1 text-[11px] font-bold border-b border-white/5 pb-1">
+                              <span className={day.isToday ? "text-[#e8ba84]" : "text-zinc-400"}>
+                                {day.dayFullDate} {day.isToday && "• HEUTE"}
                               </span>
-                              <span className="text-xs text-zinc-500 font-mono">
-                                {day.bookings.length} {day.bookings.length === 1 ? "Kunde" : "Kunden"}
-                              </span>
+                              <span className="text-zinc-500 font-mono text-[10px]">{day.bookings.length} Termine</span>
                             </div>
 
-                            {/* Termine an diesem Tag */}
                             {day.bookings.length === 0 ? (
-                              <div className="p-3 text-xs text-zinc-600 italic bg-[#0a0a0d] rounded-xl border border-white/[0.03]">
+                              <div className="p-2.5 text-[11px] text-zinc-600 italic bg-[#0a0a0d] rounded-xl border border-white/[0.03]">
                                 Keine Termine eingetragen.
                               </div>
                             ) : (
@@ -1439,9 +1319,9 @@ export default function GioModularStudio() {
                                   <div
                                     key={b.id}
                                     onClick={() => openDetailDrawer(b)}
-                                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                                    className={`p-3 rounded-2xl border transition-all cursor-pointer ${
                                       isInProgress
-                                        ? "bg-sky-500/10 border-sky-500/40 shadow-lg"
+                                        ? "bg-sky-500/10 border-sky-500/40"
                                         : isCompleted
                                         ? "bg-white/[0.02] border-white/5 opacity-60"
                                         : isPause
@@ -1450,49 +1330,39 @@ export default function GioModularStudio() {
                                     }`}
                                   >
                                     <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-3">
-                                        <div className="font-mono text-sm font-bold text-[#e8ba84] bg-black/40 px-2.5 py-1 rounded-xl border border-white/10 shrink-0">
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="font-mono text-xs font-bold text-[#e8ba84] bg-black/40 px-2 py-1 rounded-xl border border-white/10 shrink-0">
                                           {b.time}
                                         </div>
-                                        <div>
-                                          <div className="font-bold text-sm text-white flex items-center gap-2">
-                                            <span>{b.name}</span>
+                                        <div className="min-w-0">
+                                          <div className="font-bold text-xs sm:text-sm text-white flex items-center gap-1.5 truncate">
+                                            <span className="truncate">{b.name}</span>
                                             {isInProgress && (
-                                              <span className="text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded-full font-mono font-bold">
+                                              <span className="text-[9px] bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded-full font-mono shrink-0">
                                                 Im Stuhl
                                               </span>
                                             )}
-                                            {isCompleted && (
-                                              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-mono font-bold">
-                                                Erledigt
-                                              </span>
-                                            )}
                                           </div>
-                                          <div className="text-xs text-zinc-400 mt-0.5 flex items-center gap-2">
-                                            <span>{b.service}</span>
-                                            <span>•</span>
-                                            <span className="font-mono text-zinc-500">{getServiceDuration(b.service, b.addons)}</span>
+                                          <div className="text-[11px] text-zinc-400 truncate">
+                                            {b.service}
                                           </div>
                                         </div>
                                       </div>
 
-                                      {/* Rechts: Aktionen */}
-                                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                      <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                                         {b.phone && (
                                           <a
                                             href={getWhatsAppUrl(b.phone, b.name, b.date, b.time, b.service)}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all"
-                                            title="WhatsApp Chat"
+                                            className="p-1.5 rounded-xl bg-emerald-500/10 text-emerald-400"
                                           >
-                                            <MessageCircle className="w-4 h-4" />
+                                            <MessageCircle className="w-3.5 h-3.5" />
                                           </a>
                                         )}
-
                                         <button
                                           onClick={() => openDetailDrawer(b)}
-                                          className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 text-xs font-bold border border-white/10"
+                                          className="px-2.5 py-1 rounded-xl bg-white/5 text-zinc-300 text-[11px] font-bold border border-white/10"
                                         >
                                           Details
                                         </button>
@@ -1505,6 +1375,7 @@ export default function GioModularStudio() {
                           </div>
                         ))}
                     </div>
+
                   </div>
                 </div>
 
@@ -1513,15 +1384,14 @@ export default function GioModularStudio() {
           )}
 
           {/* ========================================================================= */}
-          {/* MODUL 2: SALON KALENDER (KACHELN MIT KUNDENDETAILS & KLICK-FENSTER)        */}
+          {/* MODUL 2: KALENDER (MOBIL: RESPONSIVE KACHELN + TAGES-AGENDA)              */}
           {/* ========================================================================= */}
           {activeModule === "calendar" && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               
-              {/* Kalender Header Bar */}
-              <div className="website-card rounded-3xl p-5 border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
+              <div className="website-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-white/10 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 sm:gap-4">
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={() => {
                         const d = new Date(currentCalendarMonth);
@@ -1529,9 +1399,9 @@ export default function GioModularStudio() {
                         setCurrentCalendarMonth(d);
                         playSound("click");
                       }}
-                      className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300"
+                      className="p-2 rounded-xl bg-white/5 text-zinc-300"
                     >
-                      <ChevronLeft className="w-5 h-5" />
+                      <ChevronLeft className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => {
@@ -1540,70 +1410,51 @@ export default function GioModularStudio() {
                         setCurrentCalendarMonth(d);
                         playSound("click");
                       }}
-                      className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300"
+                      className="p-2 rounded-xl bg-white/5 text-zinc-300"
                     >
-                      <ChevronRight className="w-5 h-5" />
+                      <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>
 
-                  <h2 className="text-xl sm:text-2xl font-black text-white capitalize">
+                  <h2 className="text-base sm:text-2xl font-black text-white capitalize truncate">
                     {calendarMonthData.monthName} {calendarMonthData.year}
                   </h2>
                 </div>
 
-                {/* Ansichts-Wechsler: Monatskacheln / Tages-Slots */}
-                <div className="flex items-center gap-2 bg-[#101014] p-1 rounded-2xl border border-white/10">
+                <div className="flex items-center gap-1 bg-[#101014] p-1 rounded-xl border border-white/10 shrink-0">
                   <button
-                    onClick={() => {
-                      setCalendarView("month");
-                      playSound("click");
-                    }}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                      calendarView === "month"
-                        ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708]"
-                        : "text-zinc-400 hover:text-white"
+                    onClick={() => { setCalendarView("month"); playSound("click"); }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      calendarView === "month" ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708]" : "text-zinc-400"
                     }`}
                   >
-                    Monatskacheln
+                    Monat
                   </button>
                   <button
-                    onClick={() => {
-                      setCalendarView("day");
-                      playSound("click");
-                    }}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                      calendarView === "day"
-                        ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708]"
-                        : "text-zinc-400 hover:text-white"
+                    onClick={() => { setCalendarView("day"); playSound("click"); }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      calendarView === "day" ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708]" : "text-zinc-400"
                     }`}
                   >
-                    Tages-Slots
+                    Slots
                   </button>
                 </div>
               </div>
 
-              {/* 1. MONATS-KACHELANSICHT MIT KUNDEN-DETAILS IN JEDER KACHEL */}
               {calendarView === "month" && (
                 <div className="space-y-4">
-                  {/* Wochentag-Spalten */}
-                  <div className="grid grid-cols-7 gap-2 text-center text-xs font-bold uppercase tracking-wider text-zinc-400">
-                    <div>Mo</div>
-                    <div>Di</div>
-                    <div>Mi</div>
-                    <div>Do</div>
-                    <div>Fr</div>
-                    <div>Sa</div>
-                    <div>So</div>
+                  <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-[10px] sm:text-xs font-bold uppercase tracking-wider text-zinc-400">
+                    <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
                   </div>
 
-                  {/* Kacheln Grid: Größer, mit Kunden-Previews & Direktklick */}
-                  <div className="grid grid-cols-7 gap-2 sm:gap-3">
+                  {/* KACHELN: Auf Handy kompakt (min-h-[60px]), auf Tablet/Desktop groß (min-h-[140px]) */}
+                  <div className="grid grid-cols-7 gap-1 sm:gap-2.5">
                     {calendarMonthData.tiles.map((tile, idx) => {
                       if (tile.dayNumber === null) {
                         return (
                           <div
                             key={`empty-${idx}`}
-                            className="min-h-[140px] sm:min-h-[165px] rounded-2xl bg-white/[0.01] border border-white/[0.03]"
+                            className="h-14 sm:min-h-[140px] rounded-xl sm:rounded-2xl bg-white/[0.01] border border-white/[0.03]"
                           />
                         );
                       }
@@ -1617,93 +1468,78 @@ export default function GioModularStudio() {
                             if (tile.dateStr) setSelectedDayForDetails(tile.dateStr);
                             playSound("click");
                           }}
-                          className={`min-h-[140px] sm:min-h-[165px] rounded-2xl p-2 sm:p-2.5 border flex flex-col justify-between cursor-pointer transition-all ${
+                          className={`h-16 sm:min-h-[140px] rounded-xl sm:rounded-2xl p-1.5 sm:p-2.5 border flex flex-col justify-between cursor-pointer transition-all ${
                             isSelected
-                              ? "bg-[#181820] border-[#e8ba84] shadow-xl shadow-[#e8ba84]/10 ring-1 ring-[#e8ba84]"
+                              ? "bg-[#181820] border-[#e8ba84] shadow-lg ring-1 ring-[#e8ba84]"
                               : tile.isToday
                               ? "bg-[#14141a] border-white/20"
-                              : "bg-[#0b0b0e] hover:bg-[#121217] border-white/5"
+                              : "bg-[#0b0b0e] border-white/5"
                           }`}
                         >
-                          {/* Kachel-Header */}
-                          <div className="flex items-center justify-between pb-1 border-b border-white/5">
+                          <div className="flex items-center justify-between">
                             <span
-                              className={`text-xs font-black ${
+                              className={`text-[11px] sm:text-xs font-black ${
                                 tile.isToday
-                                  ? "w-6 h-6 rounded-full bg-[#e8ba84] text-black flex items-center justify-center font-bold"
+                                  ? "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[#e8ba84] text-black flex items-center justify-center font-bold"
                                   : "text-zinc-300"
                               }`}
                             >
                               {tile.dayNumber}
                             </span>
                             {tile.bookings.length > 0 && (
-                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/10 text-[#e8ba84] font-bold">
-                                {tile.bookings.length} {tile.bookings.length === 1 ? "Kunde" : "Kunden"}
+                              <span className="text-[9px] sm:text-[10px] font-mono px-1 sm:px-1.5 py-0.2 rounded-full bg-white/10 text-[#e8ba84] font-bold">
+                                {tile.bookings.length}
                               </span>
                             )}
                           </div>
 
-                          {/* Termine direkt in der Kachel gerendert (Antippen öffnet Detail-Fenster) */}
-                          <div className="flex-1 my-1.5 space-y-1 overflow-y-auto max-h-[110px] pr-0.5">
-                            {tile.bookings.length === 0 ? (
-                              <div className="h-full flex items-center justify-center text-[10px] text-zinc-600 font-mono">
-                                Frei
+                          {/* Desktop & Tablet: Details direkt in Kachel */}
+                          <div className="hidden sm:block flex-1 my-1.5 space-y-1 overflow-y-auto max-h-[85px] pr-0.5">
+                            {tile.bookings.map((b) => (
+                              <div
+                                key={b.id}
+                                onClick={(e) => { e.stopPropagation(); openDetailDrawer(b); }}
+                                className={`px-1.5 py-0.5 rounded-lg border text-[10px] flex items-center justify-between gap-1 ${
+                                  b.status === "in_progress"
+                                    ? "bg-sky-500/20 border-sky-400/40 text-sky-200 font-bold"
+                                    : "bg-[#14141a] border-white/10 text-white"
+                                }`}
+                              >
+                                <span className="font-mono text-[#e8ba84] font-bold">{b.time}</span>
+                                <span className="truncate">{b.name}</span>
                               </div>
-                            ) : (
-                              tile.bookings.map((b) => (
-                                <div
-                                  key={b.id}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openDetailDrawer(b);
-                                  }}
-                                  className={`px-2 py-1 rounded-xl border text-[11px] transition-all hover:scale-[1.02] flex items-center justify-between gap-1 shadow-sm ${
-                                    b.status === "in_progress"
-                                      ? "bg-sky-500/20 border-sky-400/40 text-sky-200 font-bold"
-                                      : b.status === "completed"
-                                      ? "bg-white/[0.03] border-white/5 text-zinc-400 opacity-70"
-                                      : b.status === "blocked"
-                                      ? "bg-amber-500/10 border-amber-500/20 text-amber-300"
-                                      : "bg-[#14141a] hover:bg-[#1c1c24] border-white/10 text-white"
-                                  }`}
-                                  title={`${b.time} Uhr: ${b.name} (${b.service}) - Tippen für Fenster`}
-                                >
-                                  <div className="flex items-center gap-1.5 min-w-0">
-                                    <span className="font-mono text-[10px] font-bold text-[#e8ba84] shrink-0">
-                                      {b.time}
-                                    </span>
-                                    <span className="font-bold truncate text-[11px]">
-                                      {b.name}
-                                    </span>
-                                  </div>
-                                  <span className="text-[9px] text-zinc-400 truncate max-w-[55px] hidden sm:inline">
-                                    {b.service}
-                                  </span>
-                                </div>
-                              ))
-                            )}
+                            ))}
                           </div>
 
-                          {/* Kachel-Fußzeile */}
-                          <div className="pt-1 flex items-center justify-between text-[10px] text-zinc-500">
-                            <span className="truncate">
-                              {tile.bookings.length > 0 ? "Klick für Details" : "+ Freier Tag"}
-                            </span>
+                          {/* Handy: Farb-Punkte statt Text */}
+                          <div className="sm:hidden flex items-center justify-center gap-0.5 mt-1">
+                            {tile.bookings.slice(0, 3).map((b, i) => (
+                              <span
+                                key={i}
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  b.status === "in_progress"
+                                    ? "bg-sky-400"
+                                    : b.status === "completed"
+                                    ? "bg-emerald-400"
+                                    : "bg-[#e8ba84]"
+                                }`}
+                              />
+                            ))}
                           </div>
                         </div>
                       );
                     })}
                   </div>
 
-                  {/* Detailansicht des ausgewählten Tages unter den Kacheln */}
-                  <div className="website-card rounded-3xl p-6 border border-white/10 mt-6">
-                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
+                  {/* TAGES-AGENDA UNTER DEM KALENDER */}
+                  <div className="website-card rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-white/10">
+                    <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-white/10">
                       <div>
-                        <h3 className="text-base font-bold text-white">
+                        <h3 className="text-xs sm:text-base font-bold text-white">
                           Termine am {selectedDayDetails.dateStr}
                         </h3>
-                        <p className="text-xs text-zinc-400 mt-0.5">
-                          {selectedDayDetails.totalClients} Kunden gebucht • Klicke auf eine Karte für das Detail-Fenster
+                        <p className="text-[11px] text-zinc-400">
+                          {selectedDayDetails.totalClients} Kunden gebucht
                         </p>
                       </div>
 
@@ -1721,38 +1557,35 @@ export default function GioModularStudio() {
                           });
                           setIsModalOpen(true);
                         }}
-                        className="h-9 px-3.5 rounded-xl bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] text-xs font-black flex items-center gap-1.5"
+                        className="h-8 sm:h-9 px-3 rounded-xl bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] text-xs font-black flex items-center gap-1"
                       >
                         <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                        <span>Termin eintragen</span>
+                        <span>Buchen</span>
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
                       {selectedDayDetails.bookings.length === 0 ? (
-                        <div className="col-span-full py-8 text-center text-zinc-400 text-sm">
-                          Keine Buchungen an diesem Tag eingetragen.
+                        <div className="col-span-full py-6 text-center text-zinc-400 text-xs">
+                          Keine Buchungen an diesem Tag.
                         </div>
                       ) : (
                         selectedDayDetails.bookings.map((b) => (
                           <div
                             key={b.id}
                             onClick={() => openDetailDrawer(b)}
-                            className="p-4 rounded-2xl bg-[#101014] hover:bg-[#16161c] border border-white/10 cursor-pointer transition-all hover:scale-[1.01]"
+                            className="p-3.5 rounded-2xl bg-[#101014] hover:bg-[#16161c] border border-white/10 cursor-pointer"
                           >
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="font-mono text-sm font-bold text-[#e8ba84] bg-black/40 px-2 py-0.5 rounded-lg border border-white/10">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="font-mono text-xs font-bold text-[#e8ba84] bg-black/40 px-2 py-0.5 rounded-lg border border-white/10">
                                 {b.time} Uhr
                               </span>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 font-bold uppercase text-zinc-300">
+                              <span className="text-[9px] px-2 py-0.5 rounded-full bg-white/10 font-bold uppercase text-zinc-300">
                                 {b.status}
                               </span>
                             </div>
-                            <div className="font-bold text-white text-sm">{b.name}</div>
-                            <div className="text-xs text-zinc-400 mt-1">{b.service}</div>
-                            <div className="mt-2 text-[10px] text-[#e8ba84] font-mono">
-                              Antippen für alle Kundendetails →
-                            </div>
+                            <div className="font-bold text-white text-xs sm:text-sm">{b.name}</div>
+                            <div className="text-[11px] text-zinc-400 mt-0.5">{b.service}</div>
                           </div>
                         ))
                       )}
@@ -1761,51 +1594,39 @@ export default function GioModularStudio() {
                 </div>
               )}
 
-              {/* 2. TAGES-SLOTS ANSICHT */}
               {calendarView === "day" && (
-                <div className="website-card rounded-3xl p-6 border border-white/10 space-y-3">
-                  <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
-                    <h3 className="text-base font-bold text-white">
-                      Zeitslots am {selectedDayDetails.dateStr}
-                    </h3>
-                  </div>
-
-                  <div className="space-y-2.5">
+                <div className="website-card rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-white/10 space-y-2">
+                  <h3 className="text-xs sm:text-sm font-bold text-white mb-2 pb-2 border-b border-white/10">
+                    Zeitslots am {selectedDayDetails.dateStr}
+                  </h3>
+                  <div className="space-y-2">
                     {STANDARD_STUDIO_SLOTS.map((slotTime) => {
                       const booking = selectedDayDetails.bookings.find((b) => b.time === slotTime);
-
                       return (
                         <div
                           key={slotTime}
-                          className={`p-3.5 rounded-2xl border flex items-center justify-between transition-all ${
-                            booking
-                              ? "bg-[#14141a] border-[#e8ba84]/30"
-                              : "bg-[#0b0b0e] border-white/5 opacity-70 hover:opacity-100"
+                          className={`p-3 rounded-xl border flex items-center justify-between ${
+                            booking ? "bg-[#14141a] border-[#e8ba84]/30" : "bg-[#0b0b0e] border-white/5 opacity-70"
                           }`}
                         >
-                          <div className="flex items-center gap-4">
-                            <div className="font-mono text-sm font-bold text-[#e8ba84] w-16">
-                              {slotTime} Uhr
-                            </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono text-xs font-bold text-[#e8ba84] w-14">{slotTime}</span>
                             {booking ? (
                               <div>
-                                <div className="font-bold text-sm text-white">{booking.name}</div>
-                                <div className="text-xs text-zinc-400">
-                                  {booking.service} • {getServiceDuration(booking.service, booking.addons)}
-                                </div>
+                                <div className="font-bold text-xs text-white">{booking.name}</div>
+                                <div className="text-[11px] text-zinc-400">{booking.service}</div>
                               </div>
                             ) : (
-                              <div className="text-xs text-zinc-500 font-mono">Freier Slot</div>
+                              <span className="text-[11px] text-zinc-500 font-mono">Frei</span>
                             )}
                           </div>
-
                           <div>
                             {booking ? (
                               <button
                                 onClick={() => openDetailDrawer(booking)}
-                                className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 border border-white/10"
+                                className="px-2.5 py-1 rounded-lg bg-white/5 text-xs text-zinc-300 border border-white/10"
                               >
-                                Details ansehen
+                                Details
                               </button>
                             ) : (
                               <button
@@ -1822,9 +1643,9 @@ export default function GioModularStudio() {
                                   });
                                   setIsModalOpen(true);
                                 }}
-                                className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/20"
+                                className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-bold"
                               >
-                                Buchen
+                                +
                               </button>
                             )}
                           </div>
@@ -1839,80 +1660,68 @@ export default function GioModularStudio() {
           )}
 
           {/* ========================================================================= */}
-          {/* MODUL 3: KUNDENKARTEI & BUCHUNGSBUCH (CRM ARCHIV)                         */}
+          {/* MODUL 3: KARTEI (MOBIL OPTIMIERT)                                         */}
           {/* ========================================================================= */}
           {activeModule === "clients" && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               
-              {/* Auto-Cleanup Info & Manueller Purge Button */}
-              <div className="p-4 rounded-2xl bg-[#101014] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-                    <CheckCircle2 className="w-5 h-5" />
+              {/* Auto-Cleanup Banner */}
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-[#101014] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 shrink-0">
+                    <CheckCircle2 className="w-4 h-4" />
                   </div>
                   <div>
                     <div className="text-xs font-bold text-white flex items-center gap-2">
-                      <span>Automatische 5-Tage-Bereinigung aktiv</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono font-bold">
-                        Auto-Purge (5 Tage)
-                      </span>
+                      <span>Auto-Bereinigung aktiv (5 Tage)</span>
                     </div>
-                    <div className="text-[11px] text-zinc-400 mt-0.5">
-                      Vergangene Termine werden nach 5 Tagen automatisch gelöscht. Zukünftige Termine bleiben immer sicher erhalten.
-                    </div>
+                    <div className="text-[11px] text-zinc-400">Alte Termine werden nach 5 Tagen gelöscht.</div>
                   </div>
                 </div>
-
                 <button
                   disabled={cleaningUp}
                   onClick={handleManualCleanup}
-                  className="h-10 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-zinc-200 flex items-center gap-2 self-start sm:self-auto shrink-0 transition-all active:scale-95"
+                  className="h-8 px-3 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-zinc-200 flex items-center gap-1.5 self-start sm:self-auto shrink-0"
                 >
-                  <RefreshCw className={`w-4 h-4 ${cleaningUp ? "animate-spin text-[#e8ba84]" : "text-[#e8ba84]"}`} />
-                  <span>{cleaningUp ? "Prüfe..." : "Jetzt bereinigen"}</span>
+                  <RefreshCw className={`w-3.5 h-3.5 ${cleaningUp ? "animate-spin text-[#e8ba84]" : "text-[#e8ba84]"}`} />
+                  <span>{cleaningUp ? "Prüfe..." : "Bereinigen"}</span>
                 </button>
               </div>
 
-              {/* Filter- und Suchleiste */}
-              <div className="website-card rounded-3xl p-5 border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="relative w-full sm:w-80">
-                  <Search className="w-4 h-4 text-zinc-500 absolute left-4 top-1/2 -translate-y-1/2" />
+              {/* Suchleiste & Filter */}
+              <div className="website-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-white/10 space-y-3">
+                <div className="relative w-full">
+                  <Search className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     placeholder="Kunde, Telefon, Service suchen..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full h-11 pl-11 pr-4 rounded-2xl bg-[#09090c] border border-white/10 text-white placeholder-zinc-500 text-xs focus:outline-none focus:border-[#e8ba84]"
+                    className="w-full h-10 pl-10 pr-3.5 rounded-xl bg-[#09090c] border border-white/10 text-white placeholder-zinc-500 text-xs focus:outline-none focus:border-[#e8ba84]"
                   />
                 </div>
 
-                <div className="flex items-center gap-2 bg-[#101014] p-1 rounded-2xl border border-white/10 w-full sm:w-auto">
+                <div className="flex items-center gap-1 bg-[#101014] p-1 rounded-xl border border-white/10">
                   <button
                     onClick={() => setClientStatusFilter("active")}
-                    className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                      clientStatusFilter === "active"
-                        ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708]"
-                        : "text-zinc-400 hover:text-white"
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold ${
+                      clientStatusFilter === "active" ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708]" : "text-zinc-400"
                     }`}
                   >
-                    Offen / Aktiv
+                    Aktiv
                   </button>
                   <button
                     onClick={() => setClientStatusFilter("completed")}
-                    className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                      clientStatusFilter === "completed"
-                        ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708]"
-                        : "text-zinc-400 hover:text-white"
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold ${
+                      clientStatusFilter === "completed" ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708]" : "text-zinc-400"
                     }`}
                   >
                     Erledigt
                   </button>
                   <button
                     onClick={() => setClientStatusFilter("all")}
-                    className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                      clientStatusFilter === "all"
-                        ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708]"
-                        : "text-zinc-400 hover:text-white"
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold ${
+                      clientStatusFilter === "all" ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708]" : "text-zinc-400"
                     }`}
                   >
                     Alle
@@ -1920,75 +1729,51 @@ export default function GioModularStudio() {
                 </div>
               </div>
 
-              {/* Kundenkartei Liste */}
-              <div className="website-card rounded-3xl border border-white/10 overflow-hidden">
-                <div className="divide-y divide-white/5">
-                  {filteredBookingsList.length === 0 ? (
-                    <div className="py-16 text-center text-zinc-500 text-sm">
-                      Keine Kundenbuchungen zu diesem Filter gefunden.
-                    </div>
-                  ) : (
-                    filteredBookingsList.map((b) => (
-                      <div
-                        key={b.id}
-                        onClick={() => openDetailDrawer(b)}
-                        className="p-4 sm:p-5 hover:bg-white/[0.02] flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer transition-all"
-                      >
-                        <div className="flex items-start gap-4">
-                          <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center font-bold text-white text-sm shrink-0">
-                            {b.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="font-bold text-base text-white flex items-center gap-2">
-                              <span>{b.name}</span>
-                              <span className="font-mono text-xs text-zinc-400">({b.phone})</span>
-                            </div>
-                            <div className="text-xs text-zinc-400 mt-0.5">
-                              {b.service} • Dauer: {getServiceDuration(b.service, b.addons)}
-                            </div>
-                            {b.notes && (
-                              <div className="text-xs text-zinc-500 italic mt-1">
-                                Notiz: "{b.notes}"
-                              </div>
-                            )}
-                          </div>
+              {/* Kundenliste */}
+              <div className="website-card rounded-2xl sm:rounded-3xl border border-white/10 overflow-hidden divide-y divide-white/5">
+                {filteredBookingsList.length === 0 ? (
+                  <div className="py-12 text-center text-zinc-500 text-xs">Keine Kunden gefunden.</div>
+                ) : (
+                  filteredBookingsList.map((b) => (
+                    <div
+                      key={b.id}
+                      onClick={() => openDetailDrawer(b)}
+                      className="p-3.5 sm:p-4 hover:bg-white/[0.02] flex items-center justify-between gap-3 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-bold text-white text-xs shrink-0">
+                          {b.name.charAt(0).toUpperCase()}
                         </div>
-
-                        <div className="flex items-center justify-between sm:justify-end gap-3" onClick={(e) => e.stopPropagation()}>
-                          <div className="text-right">
-                            <div className="font-mono text-xs font-bold text-[#e8ba84]">
-                              {b.date} • {b.time} Uhr
-                            </div>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 uppercase font-bold text-zinc-400">
-                              {b.status}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5">
-                            {b.phone && (
-                              <a
-                                href={getWhatsAppUrl(b.phone, b.name, b.date, b.time, b.service)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-                                title="WhatsApp"
-                              >
-                                <MessageCircle className="w-4 h-4" />
-                              </a>
-                            )}
-                            <button
-                              onClick={() => openDetailDrawer(b)}
-                              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300"
-                              title="Details"
-                            >
-                              <Edit3 className="w-4 h-4 text-[#e8ba84]" />
-                            </button>
-                          </div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-xs sm:text-sm text-white truncate">{b.name}</div>
+                          <div className="text-[11px] text-zinc-400 truncate">{b.service}</div>
                         </div>
                       </div>
-                    ))
-                  )}
-                </div>
+
+                      <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <div className="text-right text-[11px] font-mono font-bold text-[#e8ba84]">
+                          {b.time}
+                        </div>
+                        {b.phone && (
+                          <a
+                            href={getWhatsAppUrl(b.phone, b.name, b.date, b.time, b.service)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                        <button
+                          onClick={() => openDetailDrawer(b)}
+                          className="p-2 rounded-xl bg-white/5 text-zinc-300"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-[#e8ba84]" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
 
             </div>
@@ -1998,77 +1783,105 @@ export default function GioModularStudio() {
       </section>
 
       {/* ========================================================================= */}
-      {/* TERMIN-DETAIL DRAWER / MODAL (MEHR DETAILS & INTERNE BARBER-NOTIZEN)      */}
+      {/* MOBILE APP BOTTOM DOCK NAVIGATION (Nur auf Handy sichtbar)                */}
+      {/* ========================================================================= */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#0a0a0d]/95 backdrop-blur-2xl border-t border-white/10 px-3 py-2 flex items-center justify-around md:hidden shadow-2xl">
+        <button
+          onClick={() => { setActiveModule("dashboard"); playSound("click"); }}
+          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+            activeModule === "dashboard" ? "text-[#e8ba84]" : "text-zinc-500"
+          }`}
+        >
+          <LayoutDashboard className="w-5 h-5" />
+          <span className="text-[10px] font-bold">Cockpit</span>
+        </button>
+
+        <button
+          onClick={() => { setActiveModule("calendar"); playSound("click"); }}
+          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+            activeModule === "calendar" ? "text-[#e8ba84]" : "text-zinc-500"
+          }`}
+        >
+          <CalendarDays className="w-5 h-5" />
+          <span className="text-[10px] font-bold">Kalender</span>
+        </button>
+
+        <button
+          onClick={() => { setActiveModule("clients"); playSound("click"); }}
+          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+            activeModule === "clients" ? "text-[#e8ba84]" : "text-zinc-500"
+          }`}
+        >
+          <Users className="w-5 h-5" />
+          <span className="text-[10px] font-bold">Kartei</span>
+        </button>
+
+        <button
+          onClick={handleLogout}
+          className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-rose-400"
+          title="Sperren"
+        >
+          <Lock className="w-5 h-5" />
+          <span className="text-[10px] font-bold">Sperren</span>
+        </button>
+      </nav>
+
+      {/* ========================================================================= */}
+      {/* DETAIL MODAL (AUF HANDY ALS BOTTOM SHEET)                                 */}
       {/* ========================================================================= */}
       {selectedBookingForDetail && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-xl website-card-active rounded-3xl p-6 sm:p-7 border border-[#e8ba84]/40 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="w-full max-w-xl website-card-active rounded-t-3xl sm:rounded-3xl p-5 sm:p-7 border border-[#e8ba84]/40 shadow-2xl space-y-4 max-h-[88vh] overflow-y-auto">
             
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-white/10">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-[#e8ba84]/15 border border-[#e8ba84]/30 flex items-center justify-center text-[#e8ba84] font-black text-lg">
+            {/* iOS Pull Bar Indicator auf Handy */}
+            <div className="w-12 h-1 bg-white/20 rounded-full mx-auto -mt-1 mb-2 sm:hidden" />
+
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-[#e8ba84]/15 border border-[#e8ba84]/30 flex items-center justify-center text-[#e8ba84] font-black text-base shrink-0">
                   {selectedBookingForDetail.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <h3 className="text-xl font-black text-white">
+                  <h3 className="text-base sm:text-xl font-black text-white">
                     {selectedBookingForDetail.name}
                   </h3>
-                  <p className="text-xs font-mono text-[#e8ba84]">
-                    {selectedBookingForDetail.date} um {selectedBookingForDetail.time} Uhr
+                  <p className="text-[11px] font-mono text-[#e8ba84]">
+                    {selectedBookingForDetail.date} • {selectedBookingForDetail.time} Uhr
                   </p>
                 </div>
               </div>
 
               <button
                 onClick={() => setSelectedBookingForDetail(null)}
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white"
+                className="p-2 rounded-xl bg-white/5 text-zinc-400"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Feedback Toast */}
             {detailActionSuccess && (
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-bold flex items-center gap-2">
-                <Check className="w-4 h-4 text-emerald-400" />
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-bold flex items-center gap-1.5">
+                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span>{detailActionSuccess}</span>
               </div>
             )}
 
-            {/* Schnitt- & Behandlungs-Details */}
-            <div className="p-4 rounded-2xl bg-[#0d0d12] border border-white/10 space-y-2">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-400">
-                Gebuchter Haarschnitt
-              </span>
-              <div className="text-base font-bold text-white">
-                {selectedBookingForDetail.service}
+            {/* Service */}
+            <div className="p-3.5 rounded-2xl bg-[#0d0d12] border border-white/10 text-xs space-y-1">
+              <div className="font-bold text-white text-sm">{selectedBookingForDetail.service}</div>
+              <div className="text-zinc-400 font-mono text-[11px]">
+                Dauer: {getServiceDuration(selectedBookingForDetail.service, selectedBookingForDetail.addons)}
               </div>
-              <div className="text-xs text-zinc-400 font-mono">
-                Geschätzte Dauer: {getServiceDuration(selectedBookingForDetail.service, selectedBookingForDetail.addons)}
-              </div>
-
               {selectedBookingForDetail.addons.length > 0 && (
-                <div className="pt-2 border-t border-white/5">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-400 block mb-1">
-                    Gewählte Add-ons / Extras
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedBookingForDetail.addons.map((a, i) => (
-                      <span
-                        key={i}
-                        className="text-xs px-2.5 py-1 rounded-xl bg-white/5 border border-white/10 text-[#fff6e8]"
-                      >
-                        {a}
-                      </span>
-                    ))}
-                  </div>
+                <div className="text-[#e8ba84] text-[11px] pt-1">
+                  Extras: {selectedBookingForDetail.addons.join(", ")}
                 </div>
               )}
             </div>
 
-            {/* Kontakt & Schnellanbindung */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Kontakt Buttons */}
+            <div className="grid grid-cols-2 gap-2">
               <a
                 href={getWhatsAppUrl(
                   selectedBookingForDetail.phone,
@@ -2079,47 +1892,44 @@ export default function GioModularStudio() {
                 )}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="h-11 rounded-2xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center justify-center gap-2"
+                className="h-10 rounded-xl bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center justify-center gap-1.5"
               >
                 <MessageCircle className="w-4 h-4" />
-                <span>WhatsApp Chat</span>
+                <span>WhatsApp</span>
               </a>
 
               {selectedBookingForDetail.phone ? (
                 <a
                   href={`tel:${selectedBookingForDetail.phone}`}
-                  className="h-11 rounded-2xl bg-white/5 hover:bg-white/10 text-zinc-200 border border-white/10 text-xs font-bold flex items-center justify-center gap-2"
+                  className="h-10 rounded-xl bg-white/5 text-zinc-200 border border-white/10 text-xs font-bold flex items-center justify-center gap-1.5"
                 >
                   <Phone className="w-4 h-4 text-[#e8ba84]" />
                   <span>Anrufen</span>
                 </a>
               ) : (
-                <div className="h-11 rounded-2xl bg-white/5 text-zinc-500 border border-white/5 text-xs flex items-center justify-center">
-                  Keine Telefonnr.
+                <div className="h-10 rounded-xl bg-white/5 text-zinc-500 text-xs flex items-center justify-center">
+                  Keine Tel.
                 </div>
               )}
             </div>
 
-            {/* Verzögerungs-Helfer (+15 Min / +30 Min Verschiebung) */}
-            <div className="p-4 rounded-2xl bg-[#0d0d12] border border-white/10">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] uppercase font-bold tracking-wider text-amber-400 flex items-center gap-1.5">
-                  <FastForward className="w-3.5 h-3.5" />
-                  <span>Verzögerungs-Helfer / Uhrzeit verschieben</span>
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
+            {/* Verzögerungs-Helfer */}
+            <div className="p-3 rounded-2xl bg-[#0d0d12] border border-white/10">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 block mb-1.5">
+                Uhrzeit verschieben (+15m / +30m)
+              </span>
+              <div className="grid grid-cols-3 gap-1.5">
                 <button
                   disabled={updatingId === selectedBookingForDetail.id}
                   onClick={() => handleShiftAppointmentTime(selectedBookingForDetail.id, 15)}
-                  className="h-10 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 text-xs font-bold"
+                  className="h-9 rounded-xl bg-amber-500/10 text-amber-300 border border-amber-500/20 text-xs font-bold"
                 >
                   +15 Min
                 </button>
                 <button
                   disabled={updatingId === selectedBookingForDetail.id}
                   onClick={() => handleShiftAppointmentTime(selectedBookingForDetail.id, 30)}
-                  className="h-10 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 text-xs font-bold"
+                  className="h-9 rounded-xl bg-amber-500/10 text-amber-300 border border-amber-500/20 text-xs font-bold"
                 >
                   +30 Min
                 </button>
@@ -2127,48 +1937,43 @@ export default function GioModularStudio() {
                   href={getWhatsAppDelayNoticeUrl(selectedBookingForDetail.phone, selectedBookingForDetail.name, 15)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="h-10 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 text-xs font-bold flex items-center justify-center gap-1"
+                  className="h-9 rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-xs font-bold flex items-center justify-center gap-1"
                 >
                   <MessageCircle className="w-3 h-3" />
-                  <span>Info via WA</span>
+                  <span>WA Info</span>
                 </a>
               </div>
             </div>
 
-            {/* Interne Barber-Notizen / Schnittkartei */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-                  <Edit3 className="w-3.5 h-3.5 text-[#e8ba84]" />
-                  <span>Interne Barber-Notiz (Schnittkartei für Gio)</span>
-                </label>
-              </div>
+            {/* Barber Notiz */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1">
+                <Edit3 className="w-3.5 h-3.5 text-[#e8ba84]" />
+                <span>Interne Barber-Notiz (Schnittkartei)</span>
+              </label>
               <textarea
-                rows={3}
-                placeholder="z.B. Seiten 0.5mm Übergang, Scheitel links, mag kein Gel, Trinkgeld..."
+                rows={2}
+                placeholder="z.B. Seiten 0.5mm, Scheitel links..."
                 value={editingNotes}
                 onChange={(e) => setEditingNotes(e.target.value)}
-                className="w-full p-3 rounded-2xl bg-[#09090c] border border-white/10 text-white placeholder-zinc-600 text-xs focus:outline-none focus:border-[#e8ba84]"
+                className="w-full p-2.5 rounded-xl bg-[#09090c] border border-white/10 text-white text-xs focus:outline-none focus:border-[#e8ba84]"
               />
               <button
                 disabled={savingNotes}
                 onClick={handleSaveNotes}
-                className="w-full h-10 bg-white/10 hover:bg-white/15 text-white border border-white/10 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95"
+                className="w-full h-9 bg-white/10 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95"
               >
                 {savingNotes ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5 text-[#e8ba84]" />}
-                <span>Notiz dauerhaft speichern</span>
+                <span>Notiz speichern</span>
               </button>
             </div>
 
-            {/* Status-Umschaltung */}
-            <div className="pt-3 border-t border-white/10 space-y-2">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-400 block">
-                Status direkt ändern
-              </span>
-              <div className="grid grid-cols-3 gap-2">
+            {/* Status-Buttons */}
+            <div className="pt-2 border-t border-white/10 space-y-2">
+              <div className="grid grid-cols-3 gap-1.5">
                 <button
                   onClick={() => handleStatusChange(selectedBookingForDetail.id, "in_progress")}
-                  className={`h-10 rounded-xl text-xs font-bold transition-all ${
+                  className={`h-9 rounded-xl text-xs font-bold ${
                     selectedBookingForDetail.status === "in_progress"
                       ? "bg-sky-500 text-black font-black"
                       : "bg-sky-500/10 text-sky-300 border border-sky-500/20"
@@ -2178,7 +1983,7 @@ export default function GioModularStudio() {
                 </button>
                 <button
                   onClick={() => handleStatusChange(selectedBookingForDetail.id, "completed")}
-                  className={`h-10 rounded-xl text-xs font-bold transition-all ${
+                  className={`h-9 rounded-xl text-xs font-bold ${
                     selectedBookingForDetail.status === "completed"
                       ? "bg-emerald-500 text-black font-black"
                       : "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
@@ -2188,23 +1993,23 @@ export default function GioModularStudio() {
                 </button>
                 <button
                   onClick={() => handleStatusChange(selectedBookingForDetail.id, "cancelled")}
-                  className={`h-10 rounded-xl text-xs font-bold transition-all ${
+                  className={`h-9 rounded-xl text-xs font-bold ${
                     selectedBookingForDetail.status === "cancelled"
                       ? "bg-rose-500 text-white font-black"
                       : "bg-rose-500/10 text-rose-300 border border-rose-500/20"
                   }`}
                 >
-                  No-Show / Abgesagt
+                  No-Show
                 </button>
               </div>
 
-              <div className="pt-2 flex justify-end">
+              <div className="flex justify-end pt-1">
                 <button
                   onClick={() => handleDeleteBooking(selectedBookingForDetail.id)}
-                  className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1.5 p-2"
+                  className="text-[11px] text-rose-400 p-1 flex items-center gap-1"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Diesen Termin endgültig löschen</span>
+                  <Trash2 className="w-3 h-3" />
+                  <span>Termin löschen</span>
                 </button>
               </div>
             </div>
@@ -2214,18 +2019,21 @@ export default function GioModularStudio() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL: NEUER TERMIN / WALK-IN / PAUSE                                     */}
+      {/* MODAL: NEUER TERMIN                                                       */}
       {/* ========================================================================= */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-lg website-card-active rounded-3xl p-6 sm:p-7 border border-[#e8ba84]/30 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <h3 className="text-lg font-black text-white">
-                {modalMode === "customer" ? "Neuen Termin anlegen" : "Pause / Sperrung anlegen"}
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="w-full max-w-lg website-card-active rounded-t-3xl sm:rounded-3xl p-5 sm:p-7 border border-[#e8ba84]/30 shadow-2xl space-y-3 max-h-[90vh] overflow-y-auto">
+            
+            <div className="w-12 h-1 bg-white/20 rounded-full mx-auto -mt-1 mb-2 sm:hidden" />
+
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <h3 className="text-base sm:text-lg font-black text-white">
+                {modalMode === "customer" ? "Neuer Termin" : "Pause anlegen"}
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white"
+                className="p-1.5 rounded-xl bg-white/5 text-zinc-400"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2253,70 +2061,64 @@ export default function GioModularStudio() {
                   setModalSubmitting(false);
                 }
               }}
-              className="space-y-4"
+              className="space-y-3 text-xs"
             >
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-300 mb-1">
-                  Name des Kunden
+                <label className="block font-bold uppercase tracking-wider text-zinc-300 mb-1">
+                  Name
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="z.B. Alex Müller oder Walk-In"
+                  placeholder="z.B. Alex Müller"
                   value={newBooking.name}
                   onChange={(e) => setNewBooking({ ...newBooking, name: e.target.value })}
-                  className="w-full h-11 px-4 rounded-xl bg-[#09090c] border border-white/15 text-white text-xs focus:outline-none focus:border-[#e8ba84]"
+                  className="w-full h-10 px-3 rounded-xl bg-[#09090c] border border-white/15 text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-300 mb-1">
-                  Telefonnummer (für WhatsApp)
+                <label className="block font-bold uppercase tracking-wider text-zinc-300 mb-1">
+                  Telefon (WhatsApp)
                 </label>
                 <input
                   type="tel"
-                  placeholder="0176 12345678"
+                  placeholder="0176..."
                   value={newBooking.phone}
                   onChange={(e) => setNewBooking({ ...newBooking, phone: e.target.value })}
-                  className="w-full h-11 px-4 rounded-xl bg-[#09090c] border border-white/15 text-white text-xs focus:outline-none focus:border-[#e8ba84]"
+                  className="w-full h-10 px-3 rounded-xl bg-[#09090c] border border-white/15 text-white"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-zinc-300 mb-1">
-                    Datum
-                  </label>
+                  <label className="block font-bold uppercase tracking-wider text-zinc-300 mb-1">Datum</label>
                   <input
                     type="date"
                     required
                     value={newBooking.date}
                     onChange={(e) => setNewBooking({ ...newBooking, date: e.target.value })}
-                    className="w-full h-11 px-4 rounded-xl bg-[#09090c] border border-white/15 text-white text-xs focus:outline-none focus:border-[#e8ba84]"
+                    className="w-full h-10 px-3 rounded-xl bg-[#09090c] border border-white/15 text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-zinc-300 mb-1">
-                    Uhrzeit
-                  </label>
+                  <label className="block font-bold uppercase tracking-wider text-zinc-300 mb-1">Uhrzeit</label>
                   <input
                     type="time"
                     required
                     value={newBooking.time}
                     onChange={(e) => setNewBooking({ ...newBooking, time: e.target.value })}
-                    className="w-full h-11 px-4 rounded-xl bg-[#09090c] border border-white/15 text-white text-xs focus:outline-none focus:border-[#e8ba84]"
+                    className="w-full h-10 px-3 rounded-xl bg-[#09090c] border border-white/15 text-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-300 mb-1">
-                  Haarschnitt / Service
-                </label>
+                <label className="block font-bold uppercase tracking-wider text-zinc-300 mb-1">Service</label>
                 <select
                   value={newBooking.service}
                   onChange={(e) => setNewBooking({ ...newBooking, service: e.target.value })}
-                  className="w-full h-11 px-4 rounded-xl bg-[#09090c] border border-white/15 text-white text-xs focus:outline-none focus:border-[#e8ba84]"
+                  className="w-full h-10 px-3 rounded-xl bg-[#09090c] border border-white/15 text-white"
                 >
                   {SERVICE_CATALOG.map((s, idx) => (
                     <option key={idx} value={s.name}>
@@ -2327,23 +2129,21 @@ export default function GioModularStudio() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-300 mb-1">
-                  Interne Notiz (Schnittwünsche)
-                </label>
+                <label className="block font-bold uppercase tracking-wider text-zinc-300 mb-1">Notiz</label>
                 <input
                   type="text"
-                  placeholder="z.B. Seiten 0.5mm, Taper Fade..."
+                  placeholder="Kundenwunsch..."
                   value={newBooking.notes}
                   onChange={(e) => setNewBooking({ ...newBooking, notes: e.target.value })}
-                  className="w-full h-11 px-4 rounded-xl bg-[#09090c] border border-white/15 text-white text-xs focus:outline-none focus:border-[#e8ba84]"
+                  className="w-full h-10 px-3 rounded-xl bg-[#09090c] border border-white/15 text-white"
                 />
               </div>
 
-              <div className="pt-2">
+              <div className="pt-1">
                 <button
                   type="submit"
                   disabled={modalSubmitting}
-                  className="w-full h-12 bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] font-black text-xs uppercase tracking-wider rounded-xl shadow-lg flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                  className="w-full h-11 bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] font-black uppercase tracking-wider rounded-xl shadow-lg flex items-center justify-center gap-2 active:scale-95"
                 >
                   {modalSubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <span>Termin anlegen</span>}
                 </button>
