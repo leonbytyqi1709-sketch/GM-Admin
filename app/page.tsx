@@ -43,7 +43,17 @@ import {
   Timer,
   AlertTriangle,
   CalendarCheck,
+  TrendingUp,
+  Banknote,
+  CreditCard,
+  Receipt,
+  DollarSign,
 } from "lucide-react";
+
+import CheckoutModal from "@/components/CheckoutModal";
+import SpontaneousPaymentModal from "@/components/SpontaneousPaymentModal";
+import PortfolioModule from "@/components/PortfolioModule";
+import type { PaymentRecord } from "@/lib/db";
 
 export type BookingStatus = "confirmed" | "cancelled" | "completed" | "in_progress" | "blocked";
 
@@ -133,7 +143,13 @@ export default function GioModularStudio() {
   const [studioStatus, setStudioStatus] = useState<"open" | "pause" | "closed">("open");
 
   // === ANWENDUNGS-MODULE ===
-  const [activeModule, setActiveModule] = useState<"dashboard" | "calendar" | "clients">("dashboard");
+  const [activeModule, setActiveModule] = useState<"dashboard" | "calendar" | "clients" | "portfolio">("dashboard");
+
+  // === KASSEN-PORTFOLIO & CHECKOUT SYSTEM ===
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState<boolean>(false);
+  const [checkoutBooking, setCheckoutBooking] = useState<Booking | null>(null);
+  const [isSpontaneousModalOpen, setIsSpontaneousModalOpen] = useState<boolean>(false);
 
   // Dashboard Wochen-Filter ("all" = ganze Woche, oder ein bestimmtes Datum)
   const [dashboardDayFilter, setDashboardDayFilter] = useState<string>("all");
@@ -181,7 +197,7 @@ export default function GioModularStudio() {
   const [cleaningUp, setCleaningUp] = useState(false);
 
   // Sound Effekte
-  const playSound = (type: "chime" | "success" | "click" = "click") => {
+  const playSound = (type: "chime" | "success" | "click" | "cash" = "click") => {
     if (!soundEnabled || typeof window === "undefined") return;
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -215,20 +231,75 @@ export default function GioModularStudio() {
         gain.connect(ctx.destination);
         osc.start();
         osc.stop(ctx.currentTime + 0.3);
+      } else if (type === "cash") {
+        const notes = [523.25, 659.25, 783.99, 1046.5];
+        notes.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.08);
+          gain.gain.setValueAtTime(0.0001, ctx.currentTime + idx * 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + idx * 0.08 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + idx * 0.08 + 0.35);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + idx * 0.08);
+          osc.stop(ctx.currentTime + idx * 0.08 + 0.4);
+        });
       }
     } catch {}
   };
 
-  // Auth Status beim Laden prüfen (Persistenz)
+  // Auth Status & UI-Einstellungen beim Laden prüfen (Persistenz bei Reload)
   useEffect(() => {
     try {
       const savedAuth = localStorage.getItem("gmcutz_terminal_auth");
       if (savedAuth === "true") {
         setIsAuthenticated(true);
       }
+
+      const savedStatus = localStorage.getItem("gmcutz_studio_status") as "open" | "pause" | "closed" | null;
+      if (savedStatus && ["open", "pause", "closed"].includes(savedStatus)) {
+        setStudioStatus(savedStatus);
+      }
+
+      const savedModule = localStorage.getItem("gmcutz_active_module") as "dashboard" | "calendar" | "clients" | "portfolio" | null;
+      if (savedModule && ["dashboard", "calendar", "clients", "portfolio"].includes(savedModule)) {
+        setActiveModule(savedModule);
+      }
+
+      const savedSound = localStorage.getItem("gmcutz_sound_enabled");
+      if (savedSound !== null) {
+        setSoundEnabled(savedSound === "true");
+      }
     } catch {}
     setAuthLoading(false);
   }, []);
+
+  // Persistente State-Setter
+  const updateStudioStatus = (newStatus: "open" | "pause" | "closed") => {
+    setStudioStatus(newStatus);
+    try {
+      localStorage.setItem("gmcutz_studio_status", newStatus);
+    } catch {}
+  };
+
+  const switchModule = (newModule: "dashboard" | "calendar" | "clients" | "portfolio") => {
+    setActiveModule(newModule);
+    try {
+      localStorage.setItem("gmcutz_active_module", newModule);
+    } catch {}
+  };
+
+  const toggleSound = () => {
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("gmcutz_sound_enabled", next ? "true" : "false");
+      } catch {}
+      return next;
+    });
+  };
 
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -306,10 +377,27 @@ export default function GioModularStudio() {
     }
   };
 
+  // Zahlungen laden
+  const fetchPayments = async () => {
+    try {
+      const res = await fetch("/api/payments", { cache: "no-store" });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.payments)) {
+        setPayments(data.payments);
+      }
+    } catch (err) {
+      console.error("Fehler beim Abrufen der Zahlungen:", err);
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchBookings();
-      const poll = setInterval(fetchBookings, 8000);
+      fetchPayments();
+      const poll = setInterval(() => {
+        fetchBookings();
+        fetchPayments();
+      }, 8000);
       return () => clearInterval(poll);
     }
   }, [isAuthenticated]);
@@ -359,6 +447,85 @@ export default function GioModularStudio() {
       console.error("Fehler beim Status-Update:", err);
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  // === KASSEN & CHECKOUT HANDLER ===
+  const openCheckoutForBooking = (booking: Booking) => {
+    setSelectedBookingForDetail(null);
+    setCheckoutBooking(booking);
+    setIsCheckoutModalOpen(true);
+    playSound("click");
+  };
+
+  const handleCheckoutComplete = async (data: {
+    amount: number;
+    paymentMethod: "bar" | "karte";
+    notes?: string;
+  }) => {
+    if (!checkoutBooking) return;
+    try {
+      if (data.amount > 0) {
+        await fetch("/api/payments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            bookingId: checkoutBooking.id,
+            clientName: checkoutBooking.name,
+            service: checkoutBooking.service,
+            amount: data.amount,
+            paymentMethod: data.paymentMethod,
+            date: checkoutBooking.date,
+            time: checkoutBooking.time,
+            notes: data.notes,
+          }),
+        });
+      }
+      await handleStatusChange(checkoutBooking.id, "completed");
+      setIsCheckoutModalOpen(false);
+      setCheckoutBooking(null);
+      fetchPayments();
+      setNotification(
+        `✓ ${checkoutBooking.name} erfolgreich abkassiert (+${data.amount.toFixed(2)} € im Portfolio gebucht)`
+      );
+    } catch (err) {
+      console.error("Fehler beim Checkout:", err);
+    }
+  };
+
+  const handleSpontaneousComplete = async (data: {
+    clientName: string;
+    service: string;
+    amount: number;
+    paymentMethod: "bar" | "karte";
+    notes?: string;
+  }) => {
+    try {
+      const res = await fetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const resData = await res.json();
+      if (resData.success) {
+        fetchPayments();
+        setNotification(`✓ Spontane Einnahme verbucht: +${data.amount.toFixed(2)} €`);
+      }
+    } catch (err) {
+      console.error("Fehler beim Buchen der spontanen Einnahme:", err);
+    }
+  };
+
+  const handleDeletePayment = async (id: string) => {
+    try {
+      const res = await fetch(`/api/payments/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        setPayments((prev) => prev.filter((p) => p.id !== id));
+        setNotification("Einnahme erfolgreich storniert/gelöscht.");
+      }
+    } catch (err) {
+      console.error("Fehler beim Löschen der Zahlung:", err);
     }
   };
 
@@ -825,7 +992,7 @@ export default function GioModularStudio() {
 
           <div className="space-y-2">
             <button
-              onClick={() => { setActiveModule("dashboard"); playSound("click"); }}
+              onClick={() => { switchModule("dashboard"); playSound("click"); }}
               className={`w-full h-12 rounded-2xl px-4 flex items-center gap-3 text-sm font-bold transition-all ${
                 activeModule === "dashboard"
                   ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] shadow-lg shadow-[#e8ba84]/15"
@@ -837,7 +1004,7 @@ export default function GioModularStudio() {
             </button>
 
             <button
-              onClick={() => { setActiveModule("calendar"); playSound("click"); }}
+              onClick={() => { switchModule("calendar"); playSound("click"); }}
               className={`w-full h-12 rounded-2xl px-4 flex items-center gap-3 text-sm font-bold transition-all ${
                 activeModule === "calendar"
                   ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] shadow-lg shadow-[#e8ba84]/15"
@@ -849,7 +1016,7 @@ export default function GioModularStudio() {
             </button>
 
             <button
-              onClick={() => { setActiveModule("clients"); playSound("click"); }}
+              onClick={() => { switchModule("clients"); playSound("click"); }}
               className={`w-full h-12 rounded-2xl px-4 flex items-center gap-3 text-sm font-bold transition-all ${
                 activeModule === "clients"
                   ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] shadow-lg shadow-[#e8ba84]/15"
@@ -858,6 +1025,18 @@ export default function GioModularStudio() {
             >
               <Users className="w-5 h-5 flex-shrink-0" />
               <span>Buchungsbuch</span>
+            </button>
+
+            <button
+              onClick={() => { switchModule("portfolio"); playSound("click"); }}
+              className={`w-full h-12 rounded-2xl px-4 flex items-center gap-3 text-sm font-bold transition-all ${
+                activeModule === "portfolio"
+                  ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] shadow-lg shadow-[#e8ba84]/15"
+                  : "text-zinc-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <TrendingUp className="w-5 h-5 flex-shrink-0" />
+              <span>Kassen-Portfolio</span>
             </button>
           </div>
         </div>
@@ -869,7 +1048,7 @@ export default function GioModularStudio() {
             </span>
             <div className="grid grid-cols-3 gap-1 bg-[#121216] p-1 rounded-xl border border-white/10">
               <button
-                onClick={() => { setStudioStatus("open"); playSound("click"); }}
+                onClick={() => { updateStudioStatus("open"); playSound("click"); }}
                 className={`py-1.5 text-[11px] font-bold rounded-lg transition-all ${
                   studioStatus === "open" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "text-zinc-400"
                 }`}
@@ -877,7 +1056,7 @@ export default function GioModularStudio() {
                 Aktiv
               </button>
               <button
-                onClick={() => { setStudioStatus("pause"); playSound("click"); }}
+                onClick={() => { updateStudioStatus("pause"); playSound("click"); }}
                 className={`py-1.5 text-[11px] font-bold rounded-lg transition-all ${
                   studioStatus === "pause" ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "text-zinc-400"
                 }`}
@@ -885,7 +1064,7 @@ export default function GioModularStudio() {
                 Pause
               </button>
               <button
-                onClick={() => { setStudioStatus("closed"); playSound("click"); }}
+                onClick={() => { updateStudioStatus("closed"); playSound("click"); }}
                 className={`py-1.5 text-[11px] font-bold rounded-lg transition-all ${
                   studioStatus === "closed" ? "bg-rose-500/20 text-rose-400 border border-rose-500/30" : "text-zinc-400"
                 }`}
@@ -897,7 +1076,7 @@ export default function GioModularStudio() {
 
           <div className="flex items-center justify-between pt-2">
             <button
-              onClick={() => setSoundEnabled(!soundEnabled)}
+              onClick={toggleSound}
               className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 text-xs"
               title="Ton an/aus"
             >
@@ -936,6 +1115,7 @@ export default function GioModularStudio() {
                   {activeModule === "dashboard" && "Salon Cockpit"}
                   {activeModule === "calendar" && "Terminkalender"}
                   {activeModule === "clients" && "Kundenkartei"}
+                  {activeModule === "portfolio" && "Kassen-Portfolio & Trading Desk"}
                 </span>
                 <span className={`w-2 h-2 rounded-full ${
                   studioStatus === "open" ? "bg-emerald-400 animate-pulse" : studioStatus === "pause" ? "bg-amber-400" : "bg-rose-500"
@@ -1092,11 +1272,11 @@ export default function GioModularStudio() {
                       <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
                         <button
                           disabled={updatingId === todayMetrics.inProgressBooking.id}
-                          onClick={() => handleStatusChange(todayMetrics.inProgressBooking!.id, "completed")}
-                          className="w-full h-11 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-2xl text-xs font-black flex items-center justify-center gap-2 active:scale-95"
+                          onClick={() => openCheckoutForBooking(todayMetrics.inProgressBooking!)}
+                          className="w-full h-11 bg-gradient-to-r from-emerald-500/30 to-teal-500/30 hover:from-emerald-500/40 hover:to-teal-500/40 text-emerald-300 border border-emerald-500/40 rounded-2xl text-xs font-black flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-emerald-500/10"
                         >
-                          <Check className="w-4 h-4 text-emerald-400" />
-                          <span>Schnitt Fertig • Stuhl Freigeben</span>
+                          <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
+                          <span>Schnitt Fertig • Kassieren & Freigeben</span>
                         </button>
 
                         <div className="grid grid-cols-2 gap-2">
@@ -1360,9 +1540,19 @@ export default function GioModularStudio() {
                                             <MessageCircle className="w-3.5 h-3.5" />
                                           </a>
                                         )}
+                                        {!isCompleted && !isPause && (
+                                          <button
+                                            onClick={() => openCheckoutForBooking(b)}
+                                            title="Termin kassieren & abschließen"
+                                            className="px-2.5 py-1 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[11px] font-bold border border-emerald-500/30 flex items-center gap-1 active:scale-95 transition-all"
+                                          >
+                                            <Check className="w-3 h-3 text-emerald-400 stroke-[3]" />
+                                            <span>Kassieren</span>
+                                          </button>
+                                        )}
                                         <button
                                           onClick={() => openDetailDrawer(b)}
-                                          className="px-2.5 py-1 rounded-xl bg-white/5 text-zinc-300 text-[11px] font-bold border border-white/10"
+                                          className="px-2.5 py-1 rounded-xl bg-white/5 text-zinc-300 text-[11px] font-bold border border-white/10 hover:bg-white/10 transition-all"
                                         >
                                           Details
                                         </button>
@@ -1779,6 +1969,23 @@ export default function GioModularStudio() {
             </div>
           )}
 
+          {/* ========================================================================= */}
+          {/* MODUL 4: KASSEN-PORTFOLIO & TRADING DESK                                   */}
+          {/* ========================================================================= */}
+          {activeModule === "portfolio" && (
+            <PortfolioModule
+              payments={payments}
+              onRefresh={fetchPayments}
+              onOpenSpontaneousModal={() => {
+                setIsSpontaneousModalOpen(true);
+                playSound("click");
+              }}
+              onDeletePayment={handleDeletePayment}
+              playSound={playSound}
+              todayStr={todayStr}
+            />
+          )}
+
         </div>
       </section>
 
@@ -1787,7 +1994,7 @@ export default function GioModularStudio() {
       {/* ========================================================================= */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#0a0a0d]/95 backdrop-blur-2xl border-t border-white/10 px-3 py-2 flex items-center justify-around md:hidden shadow-2xl">
         <button
-          onClick={() => { setActiveModule("dashboard"); playSound("click"); }}
+          onClick={() => { switchModule("dashboard"); playSound("click"); }}
           className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
             activeModule === "dashboard" ? "text-[#e8ba84]" : "text-zinc-500"
           }`}
@@ -1797,7 +2004,7 @@ export default function GioModularStudio() {
         </button>
 
         <button
-          onClick={() => { setActiveModule("calendar"); playSound("click"); }}
+          onClick={() => { switchModule("calendar"); playSound("click"); }}
           className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
             activeModule === "calendar" ? "text-[#e8ba84]" : "text-zinc-500"
           }`}
@@ -1807,7 +2014,17 @@ export default function GioModularStudio() {
         </button>
 
         <button
-          onClick={() => { setActiveModule("clients"); playSound("click"); }}
+          onClick={() => { switchModule("portfolio"); playSound("click"); }}
+          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+            activeModule === "portfolio" ? "text-[#e8ba84]" : "text-zinc-500"
+          }`}
+        >
+          <TrendingUp className="w-5 h-5" />
+          <span className="text-[10px] font-bold">Portfolio</span>
+        </button>
+
+        <button
+          onClick={() => { switchModule("clients"); playSound("click"); }}
           className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
             activeModule === "clients" ? "text-[#e8ba84]" : "text-zinc-500"
           }`}
@@ -1982,14 +2199,15 @@ export default function GioModularStudio() {
                   Im Stuhl
                 </button>
                 <button
-                  onClick={() => handleStatusChange(selectedBookingForDetail.id, "completed")}
-                  className={`h-9 rounded-xl text-xs font-bold ${
+                  onClick={() => openCheckoutForBooking(selectedBookingForDetail)}
+                  className={`h-9 rounded-xl text-xs font-bold flex items-center justify-center gap-1 ${
                     selectedBookingForDetail.status === "completed"
                       ? "bg-emerald-500 text-black font-black"
-                      : "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
+                      : "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40"
                   }`}
                 >
-                  Erledigt
+                  <Receipt className="w-3.5 h-3.5" />
+                  <span>{selectedBookingForDetail.status === "completed" ? "Kassiert" : "Kassieren"}</span>
                 </button>
                 <button
                   onClick={() => handleStatusChange(selectedBookingForDetail.id, "cancelled")}
@@ -2152,6 +2370,31 @@ export default function GioModularStudio() {
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* KASSEN & CHECKOUT MODALS                                                  */}
+      {/* ========================================================================= */}
+      <CheckoutModal
+        booking={checkoutBooking}
+        isOpen={isCheckoutModalOpen}
+        onClose={() => {
+          setIsCheckoutModalOpen(false);
+          setCheckoutBooking(null);
+          playSound("click");
+        }}
+        onComplete={handleCheckoutComplete}
+        playSound={playSound}
+      />
+
+      <SpontaneousPaymentModal
+        isOpen={isSpontaneousModalOpen}
+        onClose={() => {
+          setIsSpontaneousModalOpen(false);
+          playSound("click");
+        }}
+        onSubmit={handleSpontaneousComplete}
+        playSound={playSound}
+      />
 
     </main>
   );

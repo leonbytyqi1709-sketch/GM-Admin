@@ -197,3 +197,131 @@ export async function createManualBooking(data: {
     createdAt,
   };
 }
+
+export interface PaymentRecord {
+  id: string;
+  bookingId?: string | null;
+  clientName: string;
+  service: string;
+  amount: number;
+  paymentMethod: "bar" | "karte";
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  notes?: string;
+  createdAt: string;
+}
+
+let paymentsTableChecked = false;
+
+export async function ensurePaymentsTable(): Promise<void> {
+  if (paymentsTableChecked) return;
+  const sql = getSql();
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS payments (
+        id TEXT PRIMARY KEY,
+        booking_id TEXT,
+        client_name TEXT NOT NULL,
+        service TEXT NOT NULL,
+        amount NUMERIC(10, 2) NOT NULL,
+        payment_method TEXT NOT NULL DEFAULT 'bar',
+        date TEXT NOT NULL,
+        time TEXT NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    paymentsTableChecked = true;
+  } catch (err) {
+    console.error("[DB] Fehler beim Erstellen der payments-Tabelle:", err);
+  }
+}
+
+export async function getAllPayments(): Promise<PaymentRecord[]> {
+  await ensurePaymentsTable();
+  const sql = getSql();
+  const rows = await sql`
+    SELECT id, booking_id, client_name, service, amount, payment_method, date, time, notes, created_at
+    FROM payments
+    ORDER BY date DESC, time DESC, created_at DESC
+  `;
+  return rows.map((r: any) => ({
+    id: r.id,
+    bookingId: r.booking_id || null,
+    clientName: r.client_name,
+    service: r.service,
+    amount: parseFloat(r.amount) || 0,
+    paymentMethod: (r.payment_method === "karte" ? "karte" : "bar") as "bar" | "karte",
+    date: r.date,
+    time: r.time,
+    notes: r.notes || "",
+    createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+  }));
+}
+
+export async function createPayment(data: {
+  bookingId?: string;
+  clientName: string;
+  service: string;
+  amount: number;
+  paymentMethod: "bar" | "karte";
+  date?: string;
+  time?: string;
+  notes?: string;
+}): Promise<PaymentRecord> {
+  await ensurePaymentsTable();
+  const sql = getSql();
+  const id = "PAY-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).substring(2, 6).toUpperCase();
+  
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  
+  const date = data.date || `${y}-${m}-${d}`;
+  const time = data.time || `${hh}:${mm}`;
+  const notes = data.notes || "";
+  const createdAt = now.toISOString();
+
+  await sql`
+    INSERT INTO payments (id, booking_id, client_name, service, amount, payment_method, date, time, notes, created_at)
+    VALUES (
+      ${id},
+      ${data.bookingId || null},
+      ${data.clientName},
+      ${data.service},
+      ${data.amount},
+      ${data.paymentMethod},
+      ${date},
+      ${time},
+      ${notes},
+      ${createdAt}
+    )
+  `;
+
+  return {
+    id,
+    bookingId: data.bookingId || null,
+    clientName: data.clientName,
+    service: data.service,
+    amount: data.amount,
+    paymentMethod: data.paymentMethod,
+    date,
+    time,
+    notes,
+    createdAt,
+  };
+}
+
+export async function deletePayment(id: string): Promise<boolean> {
+  await ensurePaymentsTable();
+  const sql = getSql();
+  await sql`
+    DELETE FROM payments
+    WHERE id = ${id}
+  `;
+  return true;
+}
+
