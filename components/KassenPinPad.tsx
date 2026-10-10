@@ -227,9 +227,8 @@ export default function KassenPinPad({
         </button>
       </div>
 
-      <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-[10px] text-zinc-500 font-mono">
-        <span>Standard-PIN: 7744</span>
-        <span>GMCUTZ Security</span>
+      <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-center text-[10px] text-zinc-500 font-mono tracking-widest uppercase">
+        <span>GMCUTZ SECURE TERMINAL</span>
       </div>
     </div>
   );
