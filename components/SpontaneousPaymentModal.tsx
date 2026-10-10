@@ -10,7 +10,9 @@ import {
   Sparkles,
   Scissors,
   Check,
+  Lock,
 } from "lucide-react";
+import KassenPinPad from "@/components/KassenPinPad";
 
 interface SpontaneousPaymentModalProps {
   isOpen: boolean;
@@ -23,6 +25,8 @@ interface SpontaneousPaymentModalProps {
     notes?: string;
   }) => Promise<void>;
   playSound?: (type: "chime" | "success" | "click" | "cash") => void;
+  isUnlocked?: boolean;
+  onUnlock?: () => void;
 }
 
 const QUICK_AMOUNTS = [10, 15, 20, 40, 50, 60];
@@ -41,6 +45,8 @@ export default function SpontaneousPaymentModal({
   onClose,
   onSubmit,
   playSound,
+  isUnlocked = false,
+  onUnlock,
 }: SpontaneousPaymentModalProps) {
   const [clientName, setClientName] = useState("Walk-In Kunde");
   const [service, setService] = useState("Walk-In Haarschnitt");
@@ -48,6 +54,7 @@ export default function SpontaneousPaymentModal({
   const [paymentMethod, setPaymentMethod] = useState<"bar" | "karte">("bar");
   const [notes, setNotes] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+  const [showPinPad, setShowPinPad] = useState(false);
 
   if (!isOpen) return null;
 
@@ -56,8 +63,7 @@ export default function SpontaneousPaymentModal({
     playSound?.("click");
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const executeSubmit = async () => {
     const parsed = parseFloat(amount);
     if (isNaN(parsed) || parsed <= 0) return;
 
@@ -77,42 +83,81 @@ export default function SpontaneousPaymentModal({
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const parsed = parseFloat(amount);
+    if (isNaN(parsed) || parsed <= 0) return;
+
+    if (!isUnlocked) {
+      setShowPinPad(true);
+      playSound?.("click");
+      return;
+    }
+
+    executeSubmit();
+  };
+
   const parsedAmount = parseFloat(amount) || 0;
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
-      onClick={onClose}
-    >
-      <div
-        className="w-full sm:max-w-md bg-[#0d0d12] border-t sm:border border-[#e8ba84]/30 rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl relative overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-12 bg-gradient-to-b from-[#e8ba84]/20 to-transparent blur-xl pointer-events-none" />
+    <>
+      {showPinPad && (
+        <KassenPinPad
+          mode="modal"
+          title="Einnahme autorisieren"
+          subtitle={`Sicherheits-PIN zum Verbuchen von ${parsedAmount.toFixed(2)} € eingeben`}
+          onSuccess={() => {
+            setShowPinPad(false);
+            onUnlock?.();
+            executeSubmit();
+          }}
+          onClose={() => setShowPinPad(false)}
+          playSound={playSound}
+        />
+      )}
 
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-white/10 relative">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-black font-black shadow-lg shadow-emerald-500/20">
-              <Plus className="w-5 h-5 text-black" />
+      <div
+        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
+        onClick={onClose}
+      >
+        <div
+          className="w-full sm:max-w-md bg-[#0d0d12] border-t sm:border border-[#e8ba84]/30 rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl relative overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Glow */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-12 bg-gradient-to-b from-[#e8ba84]/20 to-transparent blur-xl pointer-events-none" />
+
+          {/* Header */}
+          <div className="flex items-center justify-between pb-4 border-b border-white/10 relative">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-black font-black shadow-lg shadow-emerald-500/20">
+                <Plus className="w-5 h-5 text-black" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                  Spontane Einnahme
+                  {isUnlocked ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                      Kasse 🔓
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                      PIN 🔒
+                    </span>
+                  )}
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  Walk-In, Produktverkauf oder Trinkgeld direkt buchen
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-black text-white">
-                Spontane Einnahme erfassen
-              </h3>
-              <p className="text-xs text-zinc-400">
-                Walk-In, Produktverkauf oder Trinkgeld direkt buchen
-              </p>
-            </div>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white flex items-center justify-center transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white flex items-center justify-center transition-all"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 my-4">
           {/* Betrag */}
@@ -247,5 +292,6 @@ export default function SpontaneousPaymentModal({
         </form>
       </div>
     </div>
+    </>
   );
 }

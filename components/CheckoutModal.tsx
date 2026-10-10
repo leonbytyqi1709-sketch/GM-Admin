@@ -12,7 +12,9 @@ import {
   TrendingUp,
   Receipt,
   User,
+  Lock,
 } from "lucide-react";
+import KassenPinPad from "@/components/KassenPinPad";
 
 interface Booking {
   id: string;
@@ -37,6 +39,8 @@ interface CheckoutModalProps {
     notes?: string;
   }) => Promise<void>;
   playSound?: (type: "chime" | "success" | "click" | "cash") => void;
+  isUnlocked?: boolean;
+  onUnlock?: () => void;
 }
 
 // Vom Kunden gewünschte Schnelltasten: 10€, 15€, 20€, 40€, 50€, 60€
@@ -48,11 +52,15 @@ export default function CheckoutModal({
   onClose,
   onComplete,
   playSound,
+  isUnlocked = false,
+  onUnlock,
 }: CheckoutModalProps) {
-  const [amount, setAmount] = useState<string>("");
+  const [amount, setAmount] = useState<string>("" );
   const [paymentMethod, setPaymentMethod] = useState<"bar" | "karte">("bar");
   const [customNotes, setCustomNotes] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+  const [showPinPad, setShowPinPad] = useState(false);
+  const [pendingOverrideAmount, setPendingOverrideAmount] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     if (isOpen && booking) {
@@ -76,7 +84,7 @@ export default function CheckoutModal({
     playSound?.("click");
   };
 
-  const handleSubmit = async (overrideAmount?: number) => {
+  const executePayment = async (overrideAmount?: number) => {
     const finalAmount = overrideAmount !== undefined ? overrideAmount : parseFloat(amount) || 0;
     setSubmitting(true);
     try {
@@ -91,38 +99,72 @@ export default function CheckoutModal({
     }
   };
 
+  const handleSubmit = (overrideAmount?: number) => {
+    const finalAmount = overrideAmount !== undefined ? overrideAmount : parseFloat(amount) || 0;
+    // Wenn Betrag > 0 und Kasse noch nicht entsperrt ist: PIN abfragen
+    if (finalAmount > 0 && !isUnlocked) {
+      setPendingOverrideAmount(overrideAmount);
+      setShowPinPad(true);
+      playSound?.("click");
+      return;
+    }
+    executePayment(overrideAmount);
+  };
+
   const parsedAmount = parseFloat(amount) || 0;
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
-      onClick={onClose}
-    >
-      <div
-        className="w-full sm:max-w-md bg-[#0d0d12] border-t sm:border border-[#e8ba84]/30 rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl relative overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Glow Akzente */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-12 bg-gradient-to-b from-[#e8ba84]/20 to-transparent blur-xl pointer-events-none" />
+    <>
+      {showPinPad && (
+        <KassenPinPad
+          mode="modal"
+          title="Kassieren autorisieren"
+          subtitle={`Sicherheits-PIN zum Verbuchen von ${(pendingOverrideAmount !== undefined ? pendingOverrideAmount : parsedAmount).toFixed(2)} € eingeben`}
+          onSuccess={() => {
+            setShowPinPad(false);
+            onUnlock?.();
+            executePayment(pendingOverrideAmount);
+          }}
+          onClose={() => setShowPinPad(false)}
+          playSound={playSound}
+        />
+      )}
 
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-white/10 relative">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#e8ba84] to-[#c99756] flex items-center justify-center text-black font-black shadow-lg shadow-[#e8ba84]/20">
-              <Receipt className="w-5 h-5 text-[#070708]" />
+      <div
+        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
+        onClick={onClose}
+      >
+        <div
+          className="w-full sm:max-w-md bg-[#0d0d12] border-t sm:border border-[#e8ba84]/30 rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl relative overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Glow Akzente */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-12 bg-gradient-to-b from-[#e8ba84]/20 to-transparent blur-xl pointer-events-none" />
+
+          {/* Header */}
+          <div className="flex items-center justify-between pb-4 border-b border-white/10 relative">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#e8ba84] to-[#c99756] flex items-center justify-center text-black font-black shadow-lg shadow-[#e8ba84]/20">
+                <Receipt className="w-5 h-5 text-[#070708]" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                  Termin kassieren
+                  {isUnlocked ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                      Kasse 🔓
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                      PIN 🔒
+                    </span>
+                  )}
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  Betrag eintragen & ins Portfolio buchen
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                Termin kassieren
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  Kasse
-                </span>
-              </h3>
-              <p className="text-xs text-zinc-400">
-                Betrag eintragen & ins Portfolio buchen
-              </p>
-            </div>
-          </div>
           <button
             onClick={onClose}
             className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white flex items-center justify-center transition-all"
@@ -306,5 +348,6 @@ export default function CheckoutModal({
         </div>
       </div>
     </div>
-  );
+  </>
+);
 }

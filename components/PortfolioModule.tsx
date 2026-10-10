@@ -23,8 +23,10 @@ import {
   Target,
   Receipt,
   PieChart,
+  Lock,
 } from "lucide-react";
 import type { PaymentRecord } from "@/lib/db";
+import KassenPinPad from "@/components/KassenPinPad";
 
 interface PortfolioModuleProps {
   payments: PaymentRecord[];
@@ -33,6 +35,9 @@ interface PortfolioModuleProps {
   onDeletePayment: (id: string) => Promise<void>;
   playSound?: (type: "chime" | "success" | "click" | "cash") => void;
   todayStr: string;
+  isUnlocked: boolean;
+  onUnlock: () => void;
+  onLock: () => void;
 }
 
 type Period = "1D" | "1W" | "1M" | "3M" | "1Y" | "ALL";
@@ -44,6 +49,9 @@ export default function PortfolioModule({
   onDeletePayment,
   playSound,
   todayStr,
+  isUnlocked,
+  onUnlock,
+  onLock,
 }: PortfolioModuleProps) {
   const [period, setPeriod] = useState<Period>("1W");
   const [paymentFilter, setPaymentFilter] = useState<"all" | "bar" | "karte">("all");
@@ -399,6 +407,20 @@ export default function PortfolioModule({
   const displayRevenue = hoveredPoint ? hoveredPoint.amount : metrics.totalRevenue;
   const isPositive = metrics.diff >= 0;
 
+  if (!isUnlocked) {
+    return (
+      <div className="space-y-6">
+        <KassenPinPad
+          mode="card"
+          title="Kassen-Tresor & Finanzen"
+          subtitle="Erhöhter Sicherheitsbereich · Bitte 4-stelligen Kassen-PIN eingeben"
+          onSuccess={onUnlock}
+          playSound={playSound}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5 sm:space-y-6 pb-20 sm:pb-8">
       {/* ========================================================================= */}
@@ -413,7 +435,7 @@ export default function PortfolioModule({
             </span>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-              Live Kasse
+              Live Kasse (Autorisiert)
             </span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-white mt-0.5">
@@ -431,6 +453,18 @@ export default function PortfolioModule({
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Sync</span>
+          </button>
+
+          <button
+            onClick={() => {
+              onLock();
+              playSound?.("click");
+            }}
+            className="h-10 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95"
+            title="Kassen-Portfolio jetzt sperren"
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Sperren</span>
           </button>
 
           <button

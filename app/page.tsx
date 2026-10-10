@@ -147,6 +147,7 @@ export default function GioModularStudio() {
 
   // === KASSEN-PORTFOLIO & CHECKOUT SYSTEM ===
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [isPortfolioUnlocked, setIsPortfolioUnlocked] = useState<boolean>(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState<boolean>(false);
   const [checkoutBooking, setCheckoutBooking] = useState<Booking | null>(null);
   const [isSpontaneousModalOpen, setIsSpontaneousModalOpen] = useState<boolean>(false);
@@ -272,6 +273,11 @@ export default function GioModularStudio() {
       if (savedSound !== null) {
         setSoundEnabled(savedSound === "true");
       }
+
+      const savedPinUnlock = sessionStorage.getItem("gmcutz_kassen_pin_unlocked");
+      if (savedPinUnlock === "true") {
+        setIsPortfolioUnlocked(true);
+      }
     } catch {}
     setAuthLoading(false);
   }, []);
@@ -289,6 +295,22 @@ export default function GioModularStudio() {
     try {
       localStorage.setItem("gmcutz_active_module", newModule);
     } catch {}
+  };
+
+  const handleUnlockPortfolio = () => {
+    setIsPortfolioUnlocked(true);
+    try {
+      sessionStorage.setItem("gmcutz_kassen_pin_unlocked", "true");
+    } catch {}
+  };
+
+  const handleLockPortfolio = () => {
+    setIsPortfolioUnlocked(false);
+    try {
+      sessionStorage.removeItem("gmcutz_kassen_pin_unlocked");
+    } catch {}
+    playSound("click");
+    setNotification("🔒 Kassen-Portfolio & Finanzen gesperrt");
   };
 
   const toggleSound = () => {
@@ -334,8 +356,10 @@ export default function GioModularStudio() {
   const handleLogout = () => {
     try {
       localStorage.removeItem("gmcutz_terminal_auth");
+      sessionStorage.removeItem("gmcutz_kassen_pin_unlocked");
     } catch {}
     setIsAuthenticated(false);
+    setIsPortfolioUnlocked(false);
     setPasswordInput("");
     playSound("click");
   };
@@ -1029,14 +1053,27 @@ export default function GioModularStudio() {
 
             <button
               onClick={() => { switchModule("portfolio"); playSound("click"); }}
-              className={`w-full h-12 rounded-2xl px-4 flex items-center gap-3 text-sm font-bold transition-all ${
+              className={`w-full h-12 rounded-2xl px-4 flex items-center justify-between text-sm font-bold transition-all ${
                 activeModule === "portfolio"
                   ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] shadow-lg shadow-[#e8ba84]/15"
                   : "text-zinc-400 hover:text-white hover:bg-white/5"
               }`}
             >
-              <TrendingUp className="w-5 h-5 flex-shrink-0" />
-              <span>Kassen-Portfolio</span>
+              <div className="flex items-center gap-3 min-w-0">
+                <TrendingUp className="w-5 h-5 flex-shrink-0" />
+                <span className="truncate">Kassen-Portfolio</span>
+              </div>
+              {isPortfolioUnlocked ? (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 font-mono shrink-0">
+                  <Unlock className="w-3 h-3" />
+                  PIN
+                </span>
+              ) : (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1 font-mono shrink-0">
+                  <Lock className="w-3 h-3" />
+                  PIN
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -1983,6 +2020,9 @@ export default function GioModularStudio() {
               onDeletePayment={handleDeletePayment}
               playSound={playSound}
               todayStr={todayStr}
+              isUnlocked={isPortfolioUnlocked}
+              onUnlock={handleUnlockPortfolio}
+              onLock={handleLockPortfolio}
             />
           )}
 
@@ -2015,11 +2055,20 @@ export default function GioModularStudio() {
 
         <button
           onClick={() => { switchModule("portfolio"); playSound("click"); }}
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all relative ${
             activeModule === "portfolio" ? "text-[#e8ba84]" : "text-zinc-500"
           }`}
         >
-          <TrendingUp className="w-5 h-5" />
+          <div className="relative">
+            <TrendingUp className="w-5 h-5" />
+            <span
+              className={`absolute -top-1 -right-2 w-2 h-2 rounded-full border border-black ${
+                isPortfolioUnlocked
+                  ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"
+                  : "bg-amber-400"
+              }`}
+            />
+          </div>
           <span className="text-[10px] font-bold">Portfolio</span>
         </button>
 
@@ -2384,6 +2433,8 @@ export default function GioModularStudio() {
         }}
         onComplete={handleCheckoutComplete}
         playSound={playSound}
+        isUnlocked={isPortfolioUnlocked}
+        onUnlock={handleUnlockPortfolio}
       />
 
       <SpontaneousPaymentModal
@@ -2394,6 +2445,8 @@ export default function GioModularStudio() {
         }}
         onSubmit={handleSpontaneousComplete}
         playSound={playSound}
+        isUnlocked={isPortfolioUnlocked}
+        onUnlock={handleUnlockPortfolio}
       />
 
     </main>
