@@ -1,0 +1,205 @@
+================================================================================
+GM-CUTZ & TERMINAL-DASHBOARD: LÖSUNGSKONZEPT & OPTIONEN-KATALOG
+THEMA: SOFORTIGER FEIERABEND, SLOTS-SPERRE & VERHINDERUNG VON SPONTANBUCHUNGEN
+DATUM: 10. Oktober 2026
+PROJEKTE:
+  1. GM-Cutz Webseite (Next.js 16 / Neon PostgreSQL / Vercel)
+  2. GM-Cutz Terminal-Dashboard (Next.js / Neon PostgreSQL)
+================================================================================
+
+1. PROBLEMSTELLUNG & AUSGANGSLAGE (WARUM DAS PASSIERT IST)
+--------------------------------------------------------------------------------
+Gio (Barber & Studio-Inhaber) wollte spontan früher Feierabend machen, um Zeit
+mit seiner Familie zu verbringen. Kurz bevor bzw. als er das Studio verlassen
+wollte, buchte ein Stammkunde über die Website online einen Termin für den
+selben Tag.
+
+Gio musste den Kunden im Nachhinein manuell anrufen bzw. anschreiben, um den
+Termin abzusagen und zu erklären, dass das Studio bereits schließt.
+
+Das hat zu Stress geführt, wirkt auf Kunden unprofessionell und stört die
+private Freizeitplanung.
+
+
+2. TECHNISCHE URSACHENANALYSE IM CODE
+--------------------------------------------------------------------------------
+Bei der Untersuchung beider Codebases wurden 3 konkrete Ursachen identifiziert:
+
+1. Extrem knappe Vorlaufzeit (Lead-Time):
+   - Datei: "GM-Cutz Webseite/app/api/bookings/slots/route.ts" (Zeile 74)
+   - Aktueller Code:
+     "if (slotMinutes <= currentMinutes + 30) { isAvailable = false; }"
+   - Problem: Die Website erlaubt Buchungen bis zu 30 Minuten vor Beginn!
+     Wenn Gio um 16:55 Uhr Schluss machen will, kann ein Kunde um 17:00 Uhr
+     problemlos für 17:30 Uhr buchen.
+
+2. Fehlender Schnell-Aktions-Button im Dashboard:
+   - Im Terminal-Dashboard gibt es aktuell keine Möglichkeit, mit einem einzigen
+     Klick alle restlichen Termine des aktuellen Tages als "Feierabend" zu blockieren.
+
+3. Filter-Bug bei der Slot-Verfügbarkeitsprüfung:
+   - Datei: "GM-Cutz Webseite/lib/db.ts" (Zeile 73)
+   - Der Filter prüft nur: "WHERE date = $date AND status = 'confirmed'".
+   - Wenn im Dashboard ein Slot als "status = 'blocked'" eingetragen wird,
+     wird dieser auf der Webseite aktuell NICHT als belegt erkannt, sondern
+     bleibt für Kunden weiterhin buchbar! Es muss "status != 'cancelled'" heißen.
+
+
+================================================================================
+3. ALLE LÖSUNGSMÖGLICHKEITEN IM ÜBERBLICK
+================================================================================
+
+--------------------------------------------------------------------------------
+MÖGLICHKEIT 1: DER 1-KLICK "FEIERABEND"-KNOPF (ONE-CLICK STUDIO LOCKDOWN)
+--------------------------------------------------------------------------------
+* Beschreibung:
+  Ein auffälliger Button ganz oben im Terminal-Dashboard (z. B. leuchtender
+  Amber/Red Schalter: "🌙 FEIERABEND EINLÄUTEN / REST DES TAGES SPERREN").
+
+* Funktionsweise:
+  1. Gio klickt auf den Button (mit kurzer Sicherheitsabfrage: "Restliche
+     Slots für heute sperren?").
+  2. Das System ermittelt alle noch offenen/freien Slots für heute (z. B. 17:30,
+     18:30, 19:30, 20:30).
+  3. Diese freien Slots werden automatisch in die gemeinsame Neon-Datenbank
+     mit status = 'blocked' ("Feierabend / Studio geschlossen") eingetragen.
+  4. Die Website aktualisiert sich sofort: Kunden sehen ab dieser Sekunde
+     keine freien Slots mehr für den heutigen Tag.
+
+* Vorteile:
+  - 1 Klick auf dem Smartphone / Terminal genügt.
+  - Vollautomatisch: Gio muss keine Uhrzeiten einzeln auswählen.
+  - Stressfrei: Handy wegstecken und direkt zur Familie gehen.
+
+
+--------------------------------------------------------------------------------
+MÖGLICHKEIT 2: ANHEBUNG DER MINDEST-VORLAUFZEIT (LEAD-TIME)
+--------------------------------------------------------------------------------
+* Beschreibung:
+  Der Puffer für spontane Online-Buchungen am selben Tag wird von 30 Minuten
+  auf mindestens 2 Stunden (oder 3 Stunden) angehoben.
+
+* Funktionsweise:
+  In "app/api/bookings/slots/route.ts" wird der Puffer angepasst:
+  - Von: "slotMinutes <= currentMinutes + 30"
+  - Auf: "slotMinutes <= currentMinutes + 120" (2 Stunden)
+  Zusätzlich optional: "Cut-Off-Zeit" am selben Tag (z. B. ab 17:00 Uhr gar
+  keine Same-Day-Buchungen mehr zulassen, nur noch für Folgetage).
+
+* Vorteile:
+  - Verhindert Last-Minute-Überraschungen komplett.
+  - Gio hat immer mindestens 2 Stunden Vorwarnzeit und wird nie wieder in
+    letzter Minute überrumpelt.
+  - Funktioniert passiv im Hintergrund, ohne dass Gio etwas tun muss.
+
+
+--------------------------------------------------------------------------------
+MÖGLICHKEIT 3: GANZTAGS-SPERRE IM KALENDER ("FAMILIENTAG / FREI / URLAUB")
+--------------------------------------------------------------------------------
+* Beschreibung:
+  In der Kalender- und Wochenansicht des Dashboards erhält jeder Tag einen
+  Button: "Diesen Tag komplett sperren".
+
+* Funktionsweise:
+  - Wenn Gio im Voraus weiß, dass er an einem Samstag, Sonntag oder Montag
+    etwas mit der Familie plant, klickt er auf "Tag sperren".
+  - Alle Slots dieses Datums werden mit einem Klick in der Datenbank blockiert.
+  - Die Website zeigt diesen Tag sofort als "Vollständig ausgebucht / geschlossen"
+    an.
+
+* Vorteile:
+  - Ideal für Wochenendausflüge, Urlaub, Feiertage oder private Termine.
+  - Kann Tage oder Wochen im Voraus mit 1 Klick aktiviert und auch wieder
+    freigegeben werden.
+
+
+--------------------------------------------------------------------------------
+MÖGLICHKEIT 4: GLOBALER STUDIO-STATUS (LIVE-SCHALTER: OPEN / CLOSED)
+--------------------------------------------------------------------------------
+* Beschreibung:
+  Ein zentraler Schalter im Dashboard, der den globalen Studio-Status steuert:
+  [🟢 STUDIO OFFEN]  vs.  [🔴 STUDIO GESCHLOSSEN (NOTFALL / FEIERABEND)]
+
+* Funktionsweise:
+  - Ein Eintrag in der Datenbank speichert den aktuellen Status für den Tag.
+  - Wenn auf "GESCHLOSSEN" geschaltet wird, blockiert die Buchungs-API
+    sofort alle Buchungsversuche für heute und blendet auf der Website
+    einen Banner ein:
+    "Gio ist heute bereits im Feierabend / Außer Haus. Nächste freie Termine
+     ab morgen verfügbar!"
+
+* Vorteile:
+  - Maximale Transparenz für Kunden (sehen direkt, warum heute nichts mehr geht).
+  - Sehr elegante UX im Terminal-Dashboard.
+
+
+--------------------------------------------------------------------------------
+MÖGLICHKEIT 5: 1-KLICK WHATSAPP-STORNO FÜR NOTFÄLLE
+--------------------------------------------------------------------------------
+* Beschreibung:
+  Falls doch einmal ein Notfall eintritt und ein bereits gebuchter Termin
+  abgesagt werden muss: Ein direkter WhatsApp-Absage-Button am Termin.
+
+* Funktionsweise:
+  - Neben jedem Termin im Dashboard gibt es neben dem "Stornieren"-Button
+    den Button: "💬 Per WhatsApp absagen".
+  - Ein Klick öffnet WhatsApp (Web oder Handy-App) mit folgendem fertigen Text:
+
+    "Hey [Kundenname]! Gio von GM-CUTZ hier. Es tut mir aufrichtig leid, mir
+     ist leider kurzfristig privat etwas Dringendes dazwischengekommen und ich
+     muss heute früher Feierabend machen. Dein Termin heute um [Uhrzeit] kann
+     daher leider nicht stattfinden. Sollen wir deinen Termin direkt auf morgen
+     oder einen anderen Wunschtag umbuchen? Gib mir kurz Bescheid!"
+
+* Vorteile:
+  - Gio muss nicht mehr tippen, nach Worten suchen oder anrufen.
+  - Professionelle und sympathische Formulierung, die Stammkunden wertschätzt.
+
+
+--------------------------------------------------------------------------------
+MÖGLICHKEIT 6: TECHNISCHER DATENBANK-SYNC-FIX (DRINGEND ERFORDERLICH)
+--------------------------------------------------------------------------------
+* Beschreibung:
+  Korrektur der SQL-Abfrage in "GM-Cutz Webseite/lib/db.ts".
+
+* Aktueller Stand:
+  Die Website fragt ab:
+  SELECT ... FROM bookings WHERE date = $date AND status = 'confirmed'
+
+* Notwendige Anpassung:
+  Änderung zu:
+  SELECT ... FROM bookings WHERE date = $date AND status != 'cancelled'
+
+* Auswirkung:
+  Sobald ein Termin oder Block im Dashboard den Status "blocked" erhält,
+  wird dieser Slot auf der Website sofort und zuverlässig gesperrt.
+
+
+================================================================================
+4. EMPFOHLENE BEST-PRACTICE KOMBINATION FÜR GIO
+================================================================================
+In der Praxis bietet die Kombination aus 3 Bausteinen den besten Schutz:
+
+1. Vorlaufzeit auf 2 Stunden erhöhen (Passiver Schutz gegen Last-Minute-Buchungen).
+2. "🌙 Feierabend einläuten"-Button im Dashboard (Aktiver 1-Klick Feierabend für heute).
+3. 1-Klick WhatsApp Storno-Button (Notfall-Lösung, falls ein Termin schon da ist).
+4. SQL-Fix einspielen (damit alle Sperrungen 100% synchron auf der Live-Seite greifen).
+
+
+================================================================================
+5. NÄCHSTE SCHRITTE ZUR UMSETZUNG (CHECKLISTE FÜR DIE NÄCHSTE SESSION)
+================================================================================
+[ ] 1. SQL-Query in "GM-Cutz Webseite/lib/db.ts" von "status = 'confirmed'"
+       auf "status != 'cancelled'" anpassen.
+[ ] 2. Vorlaufzeit in "GM-Cutz Webseite/app/api/bookings/slots/route.ts"
+       von 30 Min auf 120 Min (2 Std.) anpassen.
+[ ] 3. Dashboard-Button "Feierabend / Rest des Tages sperren" in
+       "GM-Cutz Webseite Terminal-Dashboard/app/page.tsx" einbauen.
+[ ] 4. API-Endpunkt im Dashboard anlegen, der alle verbleibenden freien Slots
+       von heute in einem Batch als status = 'blocked' speichert.
+[ ] 5. WhatsApp-Absage-Button mit Vorlage im Dashboard hinterlegen.
+[ ] 6. Testen und auf Vercel / GitHub committen und pushen.
+
+================================================================================
+Dokumentation erstellt am 10.10.2026. Feierabendbereit!
+================================================================================

@@ -48,6 +48,8 @@ import {
   CreditCard,
   Receipt,
   DollarSign,
+  Moon,
+  Sun,
 } from "lucide-react";
 
 import CheckoutModal from "@/components/CheckoutModal";
@@ -693,6 +695,79 @@ export default function GioModularStudio() {
     }
   };
 
+  // Feierabend-Status & Handler
+  const isTodayFeierabendActive = useMemo(() => {
+    return bookings.some(
+      (b) =>
+        b.date === todayStr &&
+        b.status === "blocked" &&
+        (b.service.toLowerCase().includes("feierabend") ||
+          (b.notes && b.notes.toLowerCase().includes("feierabend")))
+    );
+  }, [bookings, todayStr]);
+
+  const [lockingFeierabend, setLockingFeierabend] = useState(false);
+
+  const handleToggleFeierabend = async () => {
+    if (lockingFeierabend) return;
+
+    if (!isTodayFeierabendActive) {
+      const ok = window.confirm(
+        "Möchtest du wirklich den Feierabend einläuten und den Rest des heutigen Tages sperren?\n\nAuf der Webseite können ab sofort keine neuen Termine mehr für heute gebucht werden. Bestehende Kundentermine bleiben erhalten."
+      );
+      if (!ok) return;
+
+      setLockingFeierabend(true);
+      playSound("click");
+      try {
+        const res = await fetch("/api/bookings/lockdown", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date: todayStr, reason: "Feierabend (Studio geschlossen)" }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setNotification(`🌙 Feierabend aktiv: ${data.count} Slots für heute gesperrt!`);
+          fetchBookings();
+          playSound("success");
+        } else {
+          alert(data.error || "Fehler beim Aktivieren des Feierabends");
+        }
+      } catch (err: any) {
+        console.error(err);
+        alert("Netzwerkfehler beim Aktivieren des Feierabends");
+      } finally {
+        setLockingFeierabend(false);
+      }
+    } else {
+      const ok = window.confirm(
+        "Möchtest du die Feierabend-Sperre für heute aufheben?\n\nDie freien Zeitslots werden auf der Webseite wieder für Buchungen freigegeben."
+      );
+      if (!ok) return;
+
+      setLockingFeierabend(true);
+      playSound("click");
+      try {
+        const res = await fetch(`/api/bookings/lockdown?date=${todayStr}`, {
+          method: "DELETE",
+        });
+        const data = await res.json();
+        if (data.success) {
+          setNotification(`☀️ Feierabend aufgehoben: ${data.count} gesperrte Slots freigegeben!`);
+          fetchBookings();
+          playSound("success");
+        } else {
+          alert(data.error || "Fehler beim Aufheben der Sperre");
+        }
+      } catch (err: any) {
+        console.error(err);
+        alert("Netzwerkfehler beim Aufheben der Sperre");
+      } finally {
+        setLockingFeierabend(false);
+      }
+    }
+  };
+
   // WhatsApp Vorlage generieren
   const getWhatsAppUrl = (phone: string, name: string, date: string, time: string, service?: string) => {
     let clean = phone.replace(/[^0-9]/g, "");
@@ -1216,6 +1291,27 @@ export default function GioModularStudio() {
           {activeModule === "dashboard" && (
             <div className="space-y-5 sm:space-y-6">
               
+              {/* Feierabend-Statusbanner */}
+              {isTodayFeierabendActive && (
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-purple-950/80 via-[#181126] to-[#0c0a17] border border-purple-500/40 text-purple-200 text-xs sm:text-sm flex items-center justify-between shadow-xl">
+                  <div className="flex items-center gap-2.5">
+                    <Moon className="w-4 h-4 text-purple-400 shrink-0 animate-pulse" />
+                    <div>
+                      <span className="font-bold text-white">🌙 Feierabend für heute aktiv:</span>
+                      <span className="text-purple-300 ml-1.5 hidden sm:inline">Alle offenen Zeitslots sind gesperrt – keine spontanen Online-Buchungen mehr möglich.</span>
+                      <span className="text-purple-300 ml-1.5 sm:hidden">Offene Slots gesperrt.</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleToggleFeierabend}
+                    disabled={lockingFeierabend}
+                    className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/30 text-xs font-bold transition-all shrink-0 ml-2"
+                  >
+                    Sperre aufheben
+                  </button>
+                </div>
+              )}
+
               {/* KPI Kacheln (Kompakt auf Handy, 2-Spaltig) */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
                 <div className="website-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-white/10">
@@ -1449,6 +1545,40 @@ export default function GioModularStudio() {
                         <span>30 Min Sofort-Pause sperren</span>
                       </span>
                       <span className="text-amber-400 font-mono text-[11px]">☕ 30m</span>
+                    </button>
+
+                    <button
+                      onClick={handleToggleFeierabend}
+                      disabled={lockingFeierabend}
+                      className={`w-full h-11 border rounded-xl text-xs font-bold px-3.5 flex items-center justify-between transition-all shadow-md active:scale-98 ${
+                        isTodayFeierabendActive
+                          ? "bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-200"
+                          : "bg-purple-950/40 hover:bg-purple-900/50 border-purple-500/30 text-purple-200 hover:text-white"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        {isTodayFeierabendActive ? (
+                          <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        ) : (
+                          <Moon className="w-3.5 h-3.5 text-purple-300 shrink-0" />
+                        )}
+                        <span className="truncate">
+                          {lockingFeierabend
+                            ? "Wird aktualisiert..."
+                            : isTodayFeierabendActive
+                            ? "Feierabend aufheben (Freigeben)"
+                            : "Feierabend einläuten (Rest sperren)"}
+                        </span>
+                      </span>
+                      <span
+                        className={`font-mono text-[10px] px-2 py-0.5 rounded-md font-bold shrink-0 ml-1.5 ${
+                          isTodayFeierabendActive
+                            ? "bg-amber-500/30 text-amber-300"
+                            : "bg-purple-500/30 text-purple-200"
+                        }`}
+                      >
+                        {isTodayFeierabendActive ? "Aktiv ☀️" : "Feierabend 🌙"}
+                      </span>
                     </button>
                   </div>
                 </div>

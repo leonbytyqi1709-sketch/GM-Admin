@@ -325,3 +325,79 @@ export async function deletePayment(id: string): Promise<boolean> {
   return true;
 }
 
+/**
+ * Sperrt alle verbleibenden freien Slots an einem Datum (Feierabend / Lockdown).
+ * Bestehende Termine von echten Kunden bleiben unberührt.
+ */
+export async function lockdownDay(
+  dateStr: string,
+  reason: string = "Automatischer Feierabend"
+): Promise<{ success: boolean; count: number; slots: string[] }> {
+  const sql = getSql();
+
+  // Wochentag oder Wochenende ermitteln
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const dateObj = new Date(year, month - 1, day);
+  const dayOfWeek = dateObj.getDay();
+
+  const websiteSlots =
+    dayOfWeek === 0 || dayOfWeek === 6
+      ? ["13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"]
+      : ["15:30", "16:30", "17:30", "18:30", "19:30", "20:30"];
+
+  const standardSlots = [
+    "10:00", "10:45", "11:30", "12:15", "13:00", "13:45", "14:30", "15:15",
+    "16:00", "16:45", "17:30", "18:15", "19:00", "19:45", "20:30",
+  ];
+
+  const allTargetSlots = Array.from(new Set([...websiteSlots, ...standardSlots])).sort();
+
+  // Bestehende Buchungen abrufen (nur aktive, nicht stornierte)
+  const existingRows = await sql`
+    SELECT time FROM bookings
+    WHERE date = ${dateStr} AND status != 'cancelled'
+  `;
+  const bookedTimes = new Set(existingRows.map((r: any) => r.time));
+  const freeSlots = allTargetSlots.filter((s) => !bookedTimes.has(s));
+
+  let blockedCount = 0;
+  for (const slot of freeSlots) {
+    const id = "GM-LOCK-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+    const createdAt = new Date().toISOString();
+    await sql`
+      INSERT INTO bookings (id, name, email, phone, service, addons, date, time, notes, status, created_at)
+      VALUES (
+        ${id},
+        'STUDIO GESPERRT (FEIERABEND)',
+        'system@gmcutz.de',
+        '0000000000',
+        'Feierabend (Gesperrt)',
+        '[]',
+        ${dateStr},
+        ${slot},
+        ${reason},
+        'blocked',
+        ${createdAt}
+      )
+    `;
+    blockedCount++;
+  }
+
+  return { success: true, count: blockedCount, slots: freeSlots };
+}
+
+/**
+ * Hebt die Feierabend-Sperre für ein bestimmtes Datum wieder auf.
+ */
+export async function unlockDay(dateStr: string): Promise<{ success: boolean; count: number }> {
+  const sql = getSql();
+  const deleted = await sql`
+    DELETE FROM bookings
+    WHERE date = ${dateStr}
+      AND status = 'blocked'
+      AND (notes ILIKE '%Feierabend%' OR service ILIKE '%Feierabend%')
+    RETURNING id
+  `;
+  return { success: true, count: deleted.length };
+}
+
