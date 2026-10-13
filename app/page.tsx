@@ -197,7 +197,6 @@ export default function GioModularStudio() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const previousBookingsRef = useRef<Booking[]>([]);
-  const [cleaningUp, setCleaningUp] = useState(false);
 
   // Sound Effekte
   const playSound = (type: "chime" | "success" | "click" | "cash" = "click") => {
@@ -637,29 +636,6 @@ export default function GioModularStudio() {
       console.error("Fehler beim Löschen:", err);
     } finally {
       setUpdatingId(null);
-    }
-  };
-
-  // Manuelle Bereinigung alter Termine (> 5 Tage)
-  const handleManualCleanup = async () => {
-    setCleaningUp(true);
-    playSound("click");
-    try {
-      const res = await fetch("/api/bookings/cleanup", { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        setNotification(
-          data.deletedCount > 0
-            ? `${data.deletedCount} alte Termine (> 5 Tage) wurden automatisch gelöscht!`
-            : "Keine alten Termine älter als 5 Tage vorhanden. Datenbank ist sauber!"
-        );
-        fetchBookings();
-        playSound("success");
-      }
-    } catch (err) {
-      console.error("Fehler bei der Bereinigung:", err);
-    } finally {
-      setCleaningUp(false);
     }
   };
 
@@ -2021,29 +1997,6 @@ export default function GioModularStudio() {
           {/* ========================================================================= */}
           {activeModule === "clients" && (
             <div className="space-y-4 sm:space-y-6">
-              
-              {/* Auto-Cleanup Banner */}
-              <div className="p-3.5 sm:p-4 rounded-2xl bg-[#101014] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 shrink-0">
-                    <CheckCircle2 className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-white flex items-center gap-2">
-                      <span>Auto-Bereinigung aktiv (5 Tage)</span>
-                    </div>
-                    <div className="text-[11px] text-zinc-400">Alte Termine werden nach 5 Tagen gelöscht.</div>
-                  </div>
-                </div>
-                <button
-                  disabled={cleaningUp}
-                  onClick={handleManualCleanup}
-                  className="h-8 px-3 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-zinc-200 flex items-center gap-1.5 self-start sm:self-auto shrink-0"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${cleaningUp ? "animate-spin text-[#e8ba84]" : "text-[#e8ba84]"}`} />
-                  <span>{cleaningUp ? "Prüfe..." : "Bereinigen"}</span>
-                </button>
-              </div>
 
               {/* Suchleiste & Filter */}
               <div className="website-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-white/10 space-y-3">

@@ -24,50 +24,10 @@ function getSql() {
   return neon(dbUrl);
 }
 
-let lastCleanupTimestamp = 0;
-
 /**
- * Löscht automatisch alte, vergangene Termine, deren Datum mehr als 5 Tage in der Vergangenheit liegt.
- * Wichtig: Anstehende und heutige Termine bleiben immer unberührt!
- */
-export async function cleanupOldBookings(daysThreshold: number = 5): Promise<number> {
-  const sql = getSql();
-
-  // Berechne Stichtag: Datum vor 5 Tagen (Format YYYY-MM-DD)
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - daysThreshold);
-  const y = cutoff.getFullYear();
-  const m = String(cutoff.getMonth() + 1).padStart(2, "0");
-  const d = String(cutoff.getDate()).padStart(2, "0");
-  const cutoffDateStr = `${y}-${m}-${d}`;
-
-  try {
-    const deletedRows = await sql`
-      DELETE FROM bookings
-      WHERE date < ${cutoffDateStr}
-      RETURNING id, name, date, time
-    `;
-    if (deletedRows.length > 0) {
-      console.log(`[Auto-Cleanup] ${deletedRows.length} alte Termine vor ${cutoffDateStr} gelöscht.`);
-    }
-    return deletedRows.length;
-  } catch (err) {
-    console.error("[Auto-Cleanup] Fehler beim Bereinigen alter Termine:", err);
-    return 0;
-  }
-}
-
-/**
- * Holt alle Buchungen aus Neon PostgreSQL und führt im Hintergrund
- * die automatische 5-Tage-Bereinigung alter Termine durch.
+ * Holt alle Buchungen aus Neon PostgreSQL.
  */
 export async function getAllBookings(): Promise<BookingRecord[]> {
-  const now = Date.now();
-  // Alle 10 Minuten im Hintergrund prüfen und aufräumen
-  if (now - lastCleanupTimestamp > 10 * 60 * 1000) {
-    lastCleanupTimestamp = now;
-    cleanupOldBookings(5).catch((err) => console.error(err));
-  }
 
   const sql = getSql();
   const rows = await sql`
