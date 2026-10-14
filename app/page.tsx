@@ -55,6 +55,7 @@ import {
 import CheckoutModal from "@/components/CheckoutModal";
 import SpontaneousPaymentModal from "@/components/SpontaneousPaymentModal";
 import PortfolioModule from "@/components/PortfolioModule";
+import ClientBreakdownModal from "@/components/ClientBreakdownModal";
 import type { PaymentRecord } from "@/lib/db";
 
 export type BookingStatus = "confirmed" | "cancelled" | "completed" | "in_progress" | "blocked";
@@ -156,6 +157,11 @@ export default function GioModularStudio() {
 
   // Dashboard Wochen-Filter ("all" = ganze Woche, oder ein bestimmtes Datum)
   const [dashboardDayFilter, setDashboardDayFilter] = useState<string>("all");
+
+  // Kunden-Widget (Woche vs. Gesamt) & Aufklapp-Modal
+  const [clientWidgetScope, setClientWidgetScope] = useState<"week" | "all">("week");
+  const [isClientBreakdownModalOpen, setIsClientBreakdownModalOpen] = useState(false);
+  const [clientModalInitialTab, setClientModalInitialTab] = useState<"upcoming" | "completed">("upcoming");
 
   // Kalender-Ansicht: Monat / Tag
   const [calendarView, setCalendarView] = useState<"month" | "day">("month");
@@ -846,6 +852,51 @@ export default function GioModularStudio() {
     return currentWeekDays.reduce((acc, day) => acc + day.bookings.filter((b) => b.status !== "blocked").length, 0);
   }, [currentWeekDays]);
 
+  // Detaillierte Metriken für Kunden-Status (Woche Mo-So vs. Gesamt, aufgeteilt in Vergangen vs. Anstehend)
+  const clientMetrics = useMemo(() => {
+    const validBookings = bookings.filter((b) => b.status !== "cancelled" && b.status !== "blocked");
+
+    // 1. Woche (Mo - So der aktuellen Woche)
+    const weekDates = new Set(currentWeekDays.map((d) => d.dateStr));
+    const weekBookings = validBookings.filter((b) => weekDates.has(b.date));
+
+    // Vergangen: Entweder explizit completed ODER Datum liegt vor heute
+    const weekCompleted = weekBookings
+      .filter((b) => b.status === "completed" || b.date < todayStr)
+      .sort((a, b) => (b.date === a.date ? b.time.localeCompare(a.time) : b.date.localeCompare(a.date)));
+
+    // Anstehend: Noch nicht completed UND Datum ist heute oder in der Zukunft
+    const weekUpcoming = weekBookings
+      .filter((b) => b.status !== "completed" && b.date >= todayStr)
+      .sort((a, b) => (a.date === b.date ? a.time.localeCompare(b.time) : a.date.localeCompare(b.date)));
+
+    // 2. Alle Termine überhaupt (Gesamt / All-Time)
+    const allCompleted = validBookings
+      .filter((b) => b.status === "completed" || b.date < todayStr)
+      .sort((a, b) => (b.date === a.date ? b.time.localeCompare(a.time) : b.date.localeCompare(a.date)));
+
+    const allUpcoming = validBookings
+      .filter((b) => b.status !== "completed" && b.date >= todayStr)
+      .sort((a, b) => (a.date === b.date ? a.time.localeCompare(b.time) : a.date.localeCompare(b.date)));
+
+    return {
+      week: {
+        total: weekBookings.length,
+        completed: weekCompleted.length,
+        upcoming: weekUpcoming.length,
+        completedList: weekCompleted,
+        upcomingList: weekUpcoming,
+      },
+      all: {
+        total: validBookings.length,
+        completed: allCompleted.length,
+        upcoming: allUpcoming.length,
+        completedList: allCompleted,
+        upcomingList: allUpcoming,
+      },
+    };
+  }, [bookings, currentWeekDays, todayStr]);
+
   // Kalender-Berechnungen (Monatskacheln)
   const calendarMonthData = useMemo(() => {
     const year = currentCalendarMonth.getFullYear();
@@ -1327,16 +1378,126 @@ export default function GioModularStudio() {
                   </div>
                 </div>
 
-                <div className="website-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-white/10">
-                  <div className="flex items-center justify-between text-zinc-400 mb-0.5">
-                    <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-400">Woche Total</span>
-                    <CalendarCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-black text-white">
-                    {totalWeekAppointmentsCount} Kunden
-                  </div>
-                  <div className="text-[10px] sm:text-xs text-zinc-400 mt-0.5">Mo - So gebucht</div>
-                </div>
+                {/* Kachel 4: Erweiterte Kunden-Status-Kachel (Vergangen vs. Anstehend, Mo-So & Gesamt) */}
+                {(() => {
+                  const currentScopeData = clientMetrics[clientWidgetScope];
+                  const percentCompleted = currentScopeData.total > 0
+                    ? Math.round((currentScopeData.completed / currentScopeData.total) * 100)
+                    : 0;
+
+                  return (
+                    <div
+                      onClick={() => {
+                        setIsClientBreakdownModalOpen(true);
+                        playSound("click");
+                      }}
+                      className="website-card rounded-2xl sm:rounded-3xl p-3 sm:p-4 border border-white/10 relative overflow-hidden cursor-pointer group hover:border-[#e8ba84]/50 transition-all flex flex-col justify-between"
+                      title="Klicken für Kundenliste"
+                    >
+                      {/* Top Header mit Switcher */}
+                      <div className="flex items-center justify-between text-zinc-400 mb-1.5" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-1 bg-black/50 p-0.5 rounded-lg border border-white/10">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setClientWidgetScope("week");
+                              playSound("click");
+                            }}
+                            className={`px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase tracking-wider transition-all ${
+                              clientWidgetScope === "week"
+                                ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] shadow-sm"
+                                : "text-zinc-400 hover:text-white"
+                            }`}
+                          >
+                            Mo-So
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setClientWidgetScope("all");
+                              playSound("click");
+                            }}
+                            className={`px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase tracking-wider transition-all ${
+                              clientWidgetScope === "all"
+                                ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] shadow-sm"
+                                : "text-zinc-400 hover:text-white"
+                            }`}
+                          >
+                            Gesamt
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1 text-[10px] text-zinc-400 group-hover:text-[#e8ba84] transition-colors">
+                          <span className="hidden sm:inline text-[9px] uppercase font-bold tracking-wider">Liste</span>
+                          <ArrowUpRight className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+
+                      {/* 2 Spalten: Vergangen (Grün) vs. Anstehend (Gold) - Direkt klickbar! */}
+                      <div className="grid grid-cols-2 gap-1.5 sm:gap-2 my-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setClientModalInitialTab("completed");
+                            setIsClientBreakdownModalOpen(true);
+                            playSound("click");
+                          }}
+                          className="bg-emerald-500/10 border border-emerald-500/20 hover:border-emerald-500/50 rounded-xl p-1.5 sm:p-2 text-center hover:bg-emerald-500/20 transition-all cursor-pointer group/btn"
+                          title="Klicken: Liste vergangener Kunden öffnen"
+                        >
+                          <div className="text-[9px] sm:text-[10px] font-bold uppercase text-emerald-400 tracking-wider flex items-center justify-center gap-1">
+                            <CheckCircle2 className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                            <span>Vergangen</span>
+                          </div>
+                          <div className="text-lg sm:text-2xl font-black text-emerald-300 group-hover/btn:scale-105 transition-transform">
+                            {currentScopeData.completed}
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setClientModalInitialTab("upcoming");
+                            setIsClientBreakdownModalOpen(true);
+                            playSound("click");
+                          }}
+                          className="bg-[#e8ba84]/10 border border-[#e8ba84]/25 hover:border-[#e8ba84]/60 rounded-xl p-1.5 sm:p-2 text-center hover:bg-[#e8ba84]/20 transition-all cursor-pointer group/btn"
+                          title="Klicken: Liste anstehender Kunden öffnen"
+                        >
+                          <div className="text-[9px] sm:text-[10px] font-bold uppercase text-[#e8ba84] tracking-wider flex items-center justify-center gap-1">
+                            <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                            <span>Anstehend</span>
+                          </div>
+                          <div className="text-lg sm:text-2xl font-black text-[#e8ba84] group-hover/btn:scale-105 transition-transform">
+                            {currentScopeData.upcoming}
+                          </div>
+                        </button>
+                      </div>
+
+                      {/* Progress Bar & Total */}
+                      <div className="mt-1 space-y-1">
+                        <div className="flex items-center justify-between text-[10px] text-zinc-400">
+                          <span>
+                            Total: <strong className="text-white font-bold">{currentScopeData.total}</strong> Kunden
+                          </span>
+                          <span className="font-mono text-[9px] text-zinc-400">
+                            {percentCompleted}% fertig
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-emerald-400 to-[#e8ba84] transition-all duration-500 rounded-full"
+                            style={{ width: `${percentCompleted}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* GRID: SPOTLIGHT & WOCHENLISTE */}
@@ -2530,6 +2691,26 @@ export default function GioModularStudio() {
         playSound={playSound}
         isUnlocked={isPortfolioUnlocked}
         onUnlock={handleUnlockPortfolio}
+      />
+
+      {/* KUNDEN DETAIL-AUFSCHLÜSSELUNG (VERGANGEN VS. ANSTEHEND) */}
+      <ClientBreakdownModal
+        isOpen={isClientBreakdownModalOpen}
+        onClose={() => {
+          setIsClientBreakdownModalOpen(false);
+          playSound("click");
+        }}
+        scope={clientWidgetScope}
+        onScopeChange={(newScope) => setClientWidgetScope(newScope)}
+        completedBookings={clientMetrics[clientWidgetScope].completedList}
+        upcomingBookings={clientMetrics[clientWidgetScope].upcomingList}
+        initialTab={clientModalInitialTab}
+        onSelectBooking={(booking) => {
+          setSelectedBookingForDetail(booking);
+          setEditingNotes(booking.notes || "");
+          playSound("click");
+        }}
+        playSound={playSound}
       />
 
     </main>
