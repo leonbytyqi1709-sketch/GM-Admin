@@ -24,18 +24,24 @@ export async function POST(req: Request) {
     }
 
     const date = body?.date || getBerlinDate();
-    const reason = body?.reason || "Automatischer Feierabend";
+    const reason = body?.reason || "Tag gesperrt (Studio geschlossen)";
 
     const result = await lockdownDay(date, reason);
 
+    const isFeierabend = reason.toLowerCase().includes("feierabend");
+    const msg = isFeierabend
+      ? `Feierabend aktiviert: ${result.count} freie Slots wurden gesperrt.`
+      : `Tag ${date} gesperrt: ${result.count} freie Slots wurden für Buchungen gesperrt.`;
+
     return NextResponse.json({
       ...result,
-      message: `Feierabend aktiviert: ${result.count} freie Slots wurden gesperrt.`,
+      date,
+      message: msg,
     });
   } catch (error: any) {
     console.error("[API POST /api/bookings/lockdown] Error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Fehler beim Aktivieren des Feierabends" },
+      { success: false, error: error.message || "Fehler beim Sperren des Tages" },
       { status: 500 }
     );
   }
@@ -63,7 +69,8 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({
       ...result,
-      message: `Feierabend-Sperre aufgehoben: ${result.count} gesperrte Slots wurden wieder freigegeben.`,
+      date,
+      message: `Sperre für ${date} aufgehoben: ${result.count} gesperrte Slots wurden wieder freigegeben.`,
     });
   } catch (error: any) {
     console.error("[API DELETE /api/bookings/lockdown] Error:", error);

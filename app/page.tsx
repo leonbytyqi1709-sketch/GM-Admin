@@ -56,6 +56,7 @@ import CheckoutModal from "@/components/CheckoutModal";
 import SpontaneousPaymentModal from "@/components/SpontaneousPaymentModal";
 import PortfolioModule from "@/components/PortfolioModule";
 import ClientBreakdownModal from "@/components/ClientBreakdownModal";
+import BlockDayModal from "@/components/BlockDayModal";
 import type { PaymentRecord } from "@/lib/db";
 
 export type BookingStatus = "confirmed" | "cancelled" | "completed" | "in_progress" | "blocked";
@@ -190,6 +191,10 @@ export default function GioModularStudio() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"customer" | "pause">("customer");
   const [modalSubmitting, setModalSubmitting] = useState(false);
+
+  // Modal für Einzeltag-Sperre (Urlaub / Studio-Schließung / Feierabend)
+  const [isBlockDayModalOpen, setIsBlockDayModalOpen] = useState(false);
+  const [blockDayModalDate, setBlockDayModalDate] = useState<string>("");
   const [newBooking, setNewBooking] = useState({
     name: "",
     phone: "",
@@ -750,6 +755,13 @@ export default function GioModularStudio() {
     }
   };
 
+  // Einzeltag-Sperre Modal öffnen
+  const openBlockDayModal = (dateStr?: string) => {
+    setBlockDayModalDate(dateStr || todayStr);
+    setIsBlockDayModalOpen(true);
+    playSound("click");
+  };
+
   // WhatsApp Vorlage generieren
   const getWhatsAppUrl = (phone: string, name: string, date: string, time: string, service?: string) => {
     let clean = phone.replace(/[^0-9]/g, "");
@@ -915,10 +927,20 @@ export default function GioModularStudio() {
       isToday: boolean;
       bookings: Booking[];
       hasInProgress: boolean;
+      isBlocked: boolean;
+      blockReason: string;
     }[] = [];
 
     for (let i = 0; i < startDayOfWeek; i++) {
-      tiles.push({ dayNumber: null, dateStr: null, isToday: false, bookings: [], hasInProgress: false });
+      tiles.push({
+        dayNumber: null,
+        dateStr: null,
+        isToday: false,
+        bookings: [],
+        hasInProgress: false,
+        isBlocked: false,
+        blockReason: "",
+      });
     }
 
     for (let d = 1; d <= totalDays; d++) {
@@ -929,12 +951,33 @@ export default function GioModularStudio() {
       const isToday = dateStr === todayStr;
       const hasInProgress = dayBookings.some((b) => b.status === "in_progress");
 
+      const blockedBooking = dayBookings.find(
+        (b) =>
+          b.status === "blocked" &&
+          (b.id.startsWith("GM-LOCK-") ||
+            b.name.includes("STUDIO GESPERRT") ||
+            b.service.toLowerCase().includes("gesperrt") ||
+            b.service.toLowerCase().includes("feierabend") ||
+            (b.notes &&
+              (b.notes.toLowerCase().includes("gesperrt") ||
+                b.notes.toLowerCase().includes("feierabend") ||
+                b.notes.toLowerCase().includes("urlaub") ||
+                b.notes.toLowerCase().includes("frei"))))
+      );
+      const isBlocked = !!blockedBooking;
+      const blockReason =
+        blockedBooking?.notes ||
+        blockedBooking?.service ||
+        "Studio geschlossen";
+
       tiles.push({
         dayNumber: d,
         dateStr,
         isToday,
         bookings: dayBookings,
         hasInProgress,
+        isBlocked,
+        blockReason,
       });
     }
 
@@ -949,10 +992,32 @@ export default function GioModularStudio() {
     const dayBookings = bookings
       .filter((b) => b.date === selectedDayForDetails && b.status !== "cancelled")
       .sort((a, b) => a.time.localeCompare(b.time));
+
+    const blockedBooking = dayBookings.find(
+      (b) =>
+        b.status === "blocked" &&
+        (b.id.startsWith("GM-LOCK-") ||
+          b.name.includes("STUDIO GESPERRT") ||
+          b.service.toLowerCase().includes("gesperrt") ||
+          b.service.toLowerCase().includes("feierabend") ||
+          (b.notes &&
+            (b.notes.toLowerCase().includes("gesperrt") ||
+              b.notes.toLowerCase().includes("feierabend") ||
+              b.notes.toLowerCase().includes("urlaub") ||
+              b.notes.toLowerCase().includes("frei"))))
+    );
+    const isBlocked = !!blockedBooking;
+    const blockReason =
+      blockedBooking?.notes ||
+      blockedBooking?.service ||
+      "Studio geschlossen";
+
     return {
       dateStr: selectedDayForDetails,
       bookings: dayBookings,
       totalClients: dayBookings.filter((b) => b.status !== "blocked").length,
+      isBlocked,
+      blockReason,
     };
   }, [bookings, selectedDayForDetails]);
 
@@ -1717,6 +1782,19 @@ export default function GioModularStudio() {
                         {isTodayFeierabendActive ? "Aktiv ☀️" : "Feierabend 🌙"}
                       </span>
                     </button>
+
+                    <button
+                      onClick={() => openBlockDayModal()}
+                      className="w-full h-11 border border-zinc-700/60 hover:border-[#e8ba84]/50 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold px-3.5 flex items-center justify-between transition-all shadow-md active:scale-98 text-zinc-200 hover:text-white"
+                    >
+                      <span className="flex items-center gap-2">
+                        <CalendarDays className="w-3.5 h-3.5 text-[#e8ba84]" />
+                        <span>Einzelnen Tag sperren / freigeben</span>
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-md font-bold bg-[#e8ba84]/20 text-[#e8ba84]">
+                        Tagessperre 📅
+                      </span>
+                    </button>
                   </div>
                 </div>
 
@@ -1965,6 +2043,8 @@ export default function GioModularStudio() {
                           className={`h-16 sm:min-h-[140px] rounded-xl sm:rounded-2xl p-1.5 sm:p-2.5 border flex flex-col justify-between cursor-pointer transition-all ${
                             isSelected
                               ? "bg-[#181820] border-[#e8ba84] shadow-lg ring-1 ring-[#e8ba84]"
+                              : tile.isBlocked
+                              ? "bg-red-950/20 border-red-500/40 hover:border-red-400"
                               : tile.isToday
                               ? "bg-[#14141a] border-white/20"
                               : "bg-[#0b0b0e] border-white/5"
@@ -1980,11 +2060,18 @@ export default function GioModularStudio() {
                             >
                               {tile.dayNumber}
                             </span>
-                            {tile.bookings.length > 0 && (
-                              <span className="text-[9px] sm:text-[10px] font-mono px-1 sm:px-1.5 py-0.2 rounded-full bg-white/10 text-[#e8ba84] font-bold">
-                                {tile.bookings.length}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-1">
+                              {tile.isBlocked && (
+                                <span className="text-[8px] sm:text-[9px] font-mono px-1 py-0.2 rounded bg-red-500/20 text-red-300 font-bold border border-red-500/30 truncate max-w-[50px] sm:max-w-none">
+                                  🔒 Gesperrt
+                                </span>
+                              )}
+                              {tile.bookings.filter((b) => b.status !== "blocked").length > 0 && (
+                                <span className="text-[9px] sm:text-[10px] font-mono px-1 sm:px-1.5 py-0.2 rounded-full bg-white/10 text-[#e8ba84] font-bold">
+                                  {tile.bookings.filter((b) => b.status !== "blocked").length}
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           {/* Desktop & Tablet: Details direkt in Kachel */}
@@ -1994,7 +2081,9 @@ export default function GioModularStudio() {
                                 key={b.id}
                                 onClick={(e) => { e.stopPropagation(); openDetailDrawer(b); }}
                                 className={`px-1.5 py-0.5 rounded-lg border text-[10px] flex items-center justify-between gap-1 ${
-                                  b.status === "in_progress"
+                                  b.status === "blocked"
+                                    ? "bg-red-950/40 border-red-500/30 text-red-200"
+                                    : b.status === "in_progress"
                                     ? "bg-sky-500/20 border-sky-400/40 text-sky-200 font-bold"
                                     : "bg-[#14141a] border-white/10 text-white"
                                 }`}
@@ -2007,7 +2096,10 @@ export default function GioModularStudio() {
 
                           {/* Handy: Farb-Punkte statt Text */}
                           <div className="sm:hidden flex items-center justify-center gap-0.5 mt-1">
-                            {tile.bookings.slice(0, 3).map((b, i) => (
+                            {tile.isBlocked && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                            )}
+                            {tile.bookings.filter((b) => b.status !== "blocked").slice(0, 3).map((b, i) => (
                               <span
                                 key={i}
                                 className={`w-1.5 h-1.5 rounded-full ${
@@ -2029,34 +2121,81 @@ export default function GioModularStudio() {
                   <div className="website-card rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-white/10">
                     <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-white/10">
                       <div>
-                        <h3 className="text-xs sm:text-base font-bold text-white">
-                          Termine am {selectedDayDetails.dateStr}
+                        <h3 className="text-xs sm:text-base font-bold text-white flex items-center gap-2">
+                          <span>Termine am {selectedDayDetails.dateStr}</span>
+                          {selectedDayDetails.isBlocked && (
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30 uppercase font-bold">
+                              Gesperrt
+                            </span>
+                          )}
                         </h3>
                         <p className="text-[11px] text-zinc-400">
                           {selectedDayDetails.totalClients} Kunden gebucht
                         </p>
                       </div>
 
-                      <button
-                        onClick={() => {
-                          setModalMode("customer");
-                          setNewBooking({
-                            name: "",
-                            phone: "",
-                            service: SERVICE_CATALOG[0].name,
-                            addons: [],
-                            date: selectedDayDetails.dateStr,
-                            time: "15:00",
-                            notes: "",
-                          });
-                          setIsModalOpen(true);
-                        }}
-                        className="h-8 sm:h-9 px-3 rounded-xl bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] text-xs font-black flex items-center gap-1"
-                      >
-                        <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                        <span>Buchen</span>
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {selectedDayDetails.isBlocked ? (
+                          <button
+                            onClick={() => openBlockDayModal(selectedDayDetails.dateStr)}
+                            className="h-8 sm:h-9 px-3 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 text-xs font-black flex items-center gap-1.5 transition-all shadow-md active:scale-98"
+                          >
+                            <Unlock className="w-3.5 h-3.5 text-purple-300" />
+                            <span>Tag entsperren</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => openBlockDayModal(selectedDayDetails.dateStr)}
+                            className="h-8 sm:h-9 px-3 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-200 text-xs font-black flex items-center gap-1.5 transition-all shadow-md active:scale-98"
+                          >
+                            <Lock className="w-3.5 h-3.5 text-red-300" />
+                            <span>Tag sperren</span>
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => {
+                            setModalMode("customer");
+                            setNewBooking({
+                              name: "",
+                              phone: "",
+                              service: SERVICE_CATALOG[0].name,
+                              addons: [],
+                              date: selectedDayDetails.dateStr,
+                              time: "15:00",
+                              notes: "",
+                            });
+                            setIsModalOpen(true);
+                          }}
+                          className="h-8 sm:h-9 px-3 rounded-xl bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] text-xs font-black flex items-center gap-1 shadow-md active:scale-98"
+                        >
+                          <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                          <span>Buchen</span>
+                        </button>
+                      </div>
                     </div>
+
+                    {/* Banner falls Tag gesperrt */}
+                    {selectedDayDetails.isBlocked && (
+                      <div className="mb-3.5 p-3.5 rounded-2xl bg-gradient-to-r from-red-950/60 via-[#1c1015] to-[#120a0d] border border-red-500/40 text-red-200 text-xs flex items-center justify-between shadow-lg">
+                        <div className="flex items-center gap-2.5">
+                          <Lock className="w-4 h-4 text-red-400 shrink-0" />
+                          <div>
+                            <span className="font-bold text-white">🔒 Tag ist für Online-Buchungen gesperrt:</span>
+                            <span className="ml-1 text-red-300 font-medium">{selectedDayDetails.blockReason}</span>
+                            <span className="text-zinc-400 block text-[11px] mt-0.5">
+                              Auf der Webseite können Kunden für dieses Datum keine Termine auswählen.
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => openBlockDayModal(selectedDayDetails.dateStr)}
+                          className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 text-xs font-bold transition shrink-0 ml-2"
+                        >
+                          Entsperren
+                        </button>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
                       {selectedDayDetails.bookings.length === 0 ? (
@@ -2100,14 +2239,25 @@ export default function GioModularStudio() {
                         <div
                           key={slotTime}
                           className={`p-3 rounded-xl border flex items-center justify-between ${
-                            booking ? "bg-[#14141a] border-[#e8ba84]/30" : "bg-[#0b0b0e] border-white/5 opacity-70"
+                            booking?.status === "blocked"
+                              ? "bg-red-950/20 border-red-500/30"
+                              : booking
+                              ? "bg-[#14141a] border-[#e8ba84]/30"
+                              : "bg-[#0b0b0e] border-white/5 opacity-70"
                           }`}
                         >
                           <div className="flex items-center gap-3">
                             <span className="font-mono text-xs font-bold text-[#e8ba84] w-14">{slotTime}</span>
                             {booking ? (
                               <div>
-                                <div className="font-bold text-xs text-white">{booking.name}</div>
+                                <div className="font-bold text-xs text-white flex items-center gap-1.5">
+                                  <span>{booking.name}</span>
+                                  {booking.status === "blocked" && (
+                                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-red-500/20 text-red-300 font-bold border border-red-500/30">
+                                      Gesperrt
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="text-[11px] text-zinc-400">{booking.service}</div>
                               </div>
                             ) : (
@@ -2118,7 +2268,11 @@ export default function GioModularStudio() {
                             {booking ? (
                               <button
                                 onClick={() => openDetailDrawer(booking)}
-                                className="px-2.5 py-1 rounded-lg bg-white/5 text-xs text-zinc-300 border border-white/10"
+                                className={`px-2.5 py-1 rounded-lg text-xs border ${
+                                  booking.status === "blocked"
+                                    ? "bg-red-500/10 text-red-300 border-red-500/30"
+                                    : "bg-white/5 text-zinc-300 border-white/10"
+                                }`}
                               >
                                 Details
                               </button>
@@ -2709,6 +2863,22 @@ export default function GioModularStudio() {
           setSelectedBookingForDetail(booking);
           setEditingNotes(booking.notes || "");
           playSound("click");
+        }}
+        playSound={playSound}
+      />
+
+      {/* EINZELTAG SPERREN / FREIGEBEN MODAL */}
+      <BlockDayModal
+        isOpen={isBlockDayModalOpen}
+        onClose={() => {
+          setIsBlockDayModalOpen(false);
+          playSound("click");
+        }}
+        initialDate={blockDayModalDate}
+        bookings={bookings}
+        onSuccess={(msg) => {
+          setNotification(msg);
+          fetchBookings();
         }}
         playSound={playSound}
       />

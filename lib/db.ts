@@ -286,12 +286,12 @@ export async function deletePayment(id: string): Promise<boolean> {
 }
 
 /**
- * Sperrt alle verbleibenden freien Slots an einem Datum (Feierabend / Lockdown).
+ * Sperrt alle verbleibenden freien Slots an einem Datum (Feierabend / Tagessperre / Urlaub).
  * Bestehende Termine von echten Kunden bleiben unberührt.
  */
 export async function lockdownDay(
   dateStr: string,
-  reason: string = "Automatischer Feierabend"
+  reason: string = "Tag gesperrt"
 ): Promise<{ success: boolean; count: number; slots: string[] }> {
   const sql = getSql();
 
@@ -320,6 +320,10 @@ export async function lockdownDay(
   const bookedTimes = new Set(existingRows.map((r: any) => r.time));
   const freeSlots = allTargetSlots.filter((s) => !bookedTimes.has(s));
 
+  const isFeierabend = reason.toLowerCase().includes("feierabend");
+  const serviceName = isFeierabend ? "Feierabend (Gesperrt)" : "Tag gesperrt";
+  const clientName = isFeierabend ? "STUDIO GESPERRT (FEIERABEND)" : "STUDIO GESPERRT";
+
   let blockedCount = 0;
   for (const slot of freeSlots) {
     const id = "GM-LOCK-" + Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -328,10 +332,10 @@ export async function lockdownDay(
       INSERT INTO bookings (id, name, email, phone, service, addons, date, time, notes, status, created_at)
       VALUES (
         ${id},
-        'STUDIO GESPERRT (FEIERABEND)',
+        ${clientName},
         'system@gmcutz.de',
         '0000000000',
-        'Feierabend (Gesperrt)',
+        ${serviceName},
         '[]',
         ${dateStr},
         ${slot},
@@ -347,7 +351,8 @@ export async function lockdownDay(
 }
 
 /**
- * Hebt die Feierabend-Sperre für ein bestimmtes Datum wieder auf.
+ * Hebt die Sperre für ein bestimmtes Datum wieder auf (Slots werden wieder freigegeben).
+ * Reale Kundentermine werden NIEMALS gelöscht.
  */
 export async function unlockDay(dateStr: string): Promise<{ success: boolean; count: number }> {
   const sql = getSql();
@@ -355,7 +360,16 @@ export async function unlockDay(dateStr: string): Promise<{ success: boolean; co
     DELETE FROM bookings
     WHERE date = ${dateStr}
       AND status = 'blocked'
-      AND (notes ILIKE '%Feierabend%' OR service ILIKE '%Feierabend%')
+      AND (
+        id LIKE 'GM-LOCK-%'
+        OR notes ILIKE '%Feierabend%'
+        OR service ILIKE '%Feierabend%'
+        OR notes ILIKE '%gesperrt%'
+        OR service ILIKE '%gesperrt%'
+        OR notes ILIKE '%urlaub%'
+        OR notes ILIKE '%frei%'
+        OR name ILIKE '%STUDIO GESPERRT%'
+      )
     RETURNING id
   `;
   return { success: true, count: deleted.length };
