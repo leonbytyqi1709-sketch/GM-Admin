@@ -1305,7 +1305,7 @@ export default function GioModularStudio() {
       </aside>
 
       {/* HAUPTINHALT */}
-      <section className="flex-1 flex flex-col min-w-0 overflow-y-auto max-h-screen pb-24 md:pb-8">
+      <section className="flex-1 flex flex-col min-w-0 overflow-y-auto max-h-screen pb-28 sm:pb-32 md:pb-8">
         
         {/* COMPACT HEADER (Für Handy & Desktop) */}
         <header className="sticky top-0 z-20 bg-[#070708]/95 backdrop-blur-xl border-b border-white/10 px-3.5 sm:px-6 md:px-8 py-3 flex items-center justify-between">
@@ -1430,16 +1430,18 @@ export default function GioModularStudio() {
                   </div>
                 </div>
 
-                <div className="website-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-white/10">
+                <div className="website-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-white/10 col-span-2 sm:col-span-1 lg:col-span-1 flex flex-col justify-between">
                   <div className="flex items-center justify-between text-zinc-400 mb-0.5">
                     <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-sky-400">Stuhl-Status</span>
                     <Scissors className="w-3.5 h-3.5 text-sky-400" />
                   </div>
-                  <div className="text-2xl sm:text-3xl font-black text-sky-300">
-                    {todayMetrics.inProgressBooking ? "Belegt" : "Frei"}
-                  </div>
-                  <div className="text-[10px] sm:text-xs text-zinc-400 mt-0.5 truncate">
-                    {todayMetrics.inProgressBooking ? todayMetrics.inProgressBooking.name : "Bereit"}
+                  <div className="flex items-baseline justify-between sm:block">
+                    <div className="text-2xl sm:text-3xl font-black text-sky-300">
+                      {todayMetrics.inProgressBooking ? "Belegt" : "Frei"}
+                    </div>
+                    <div className="text-xs sm:text-xs text-zinc-400 mt-0.5 truncate font-medium">
+                      {todayMetrics.inProgressBooking ? todayMetrics.inProgressBooking.name : "Bereit"}
+                    </div>
                   </div>
                 </div>
 
@@ -1456,7 +1458,7 @@ export default function GioModularStudio() {
                         setIsClientBreakdownModalOpen(true);
                         playSound("click");
                       }}
-                      className="website-card rounded-2xl sm:rounded-3xl p-3 sm:p-4 border border-white/10 relative overflow-hidden cursor-pointer group hover:border-[#e8ba84]/50 transition-all flex flex-col justify-between"
+                      className="website-card rounded-2xl sm:rounded-3xl p-3 sm:p-4 border border-white/10 relative overflow-hidden cursor-pointer group hover:border-[#e8ba84]/50 transition-all flex flex-col justify-between col-span-2 sm:col-span-1 lg:col-span-1"
                       title="Klicken für Kundenliste"
                     >
                       {/* Top Header mit Switcher */}
@@ -1758,7 +1760,7 @@ export default function GioModularStudio() {
                           : "bg-purple-950/40 hover:bg-purple-900/50 border-purple-500/30 text-purple-200 hover:text-white"
                       }`}
                     >
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-2 min-w-0">
                         {isTodayFeierabendActive ? (
                           <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                         ) : (
@@ -1768,7 +1770,7 @@ export default function GioModularStudio() {
                           {lockingFeierabend
                             ? "Wird aktualisiert..."
                             : isTodayFeierabendActive
-                            ? "Feierabend aufheben (Freigeben)"
+                            ? "Feierabend aufheben"
                             : "Feierabend einläuten (Rest sperren)"}
                         </span>
                       </span>
@@ -1787,11 +1789,11 @@ export default function GioModularStudio() {
                       onClick={() => openBlockDayModal()}
                       className="w-full h-11 border border-zinc-700/60 hover:border-[#e8ba84]/50 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold px-3.5 flex items-center justify-between transition-all shadow-md active:scale-98 text-zinc-200 hover:text-white"
                     >
-                      <span className="flex items-center gap-2">
-                        <CalendarDays className="w-3.5 h-3.5 text-[#e8ba84]" />
-                        <span>Einzelnen Tag sperren / freigeben</span>
+                      <span className="flex items-center gap-2 min-w-0">
+                        <CalendarDays className="w-3.5 h-3.5 text-[#e8ba84] shrink-0" />
+                        <span className="truncate">Einzelnen Tag sperren / freigeben</span>
                       </span>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-md font-bold bg-[#e8ba84]/20 text-[#e8ba84]">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-md font-bold bg-[#e8ba84]/20 text-[#e8ba84] shrink-0 ml-1.5">
                         Tagessperre 📅
                       </span>
                     </button>
@@ -1891,13 +1893,13 @@ export default function GioModularStudio() {
                                         : "bg-[#101014] hover:bg-[#16161c] border-white/10"
                                     }`}
                                   >
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-2">
                                       <div className="flex items-center gap-2.5 min-w-0">
-                                        <div className="font-mono text-xs font-bold text-[#e8ba84] bg-black/40 px-2 py-1 rounded-xl border border-white/10 shrink-0">
+                                        <div className="font-mono text-xs font-bold text-[#e8ba84] bg-black/40 px-2.5 py-1 rounded-xl border border-white/10 shrink-0">
                                           {b.time}
                                         </div>
-                                        <div className="min-w-0">
-                                          <div className="font-bold text-xs sm:text-sm text-white flex items-center gap-1.5 truncate">
+                                        <div className="min-w-0 flex-1">
+                                          <div className="font-bold text-xs sm:text-sm text-white flex items-center gap-1.5">
                                             <span className="truncate">{b.name}</span>
                                             {isInProgress && (
                                               <span className="text-[9px] bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded-full font-mono shrink-0">
@@ -1911,7 +1913,7 @@ export default function GioModularStudio() {
                                         </div>
                                       </div>
 
-                                      <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                      <div className="flex items-center justify-end sm:justify-start gap-1.5 shrink-0 pt-1.5 sm:pt-0 border-t border-white/5 sm:border-0" onClick={(e) => e.stopPropagation()}>
                                         {b.phone && (
                                           <a
                                             href={getWhatsAppUrl(b.phone, b.name, b.date, b.time, b.service)}
@@ -2062,8 +2064,9 @@ export default function GioModularStudio() {
                             </span>
                             <div className="flex items-center gap-1">
                               {tile.isBlocked && (
-                                <span className="text-[8px] sm:text-[9px] font-mono px-1 py-0.2 rounded bg-red-500/20 text-red-300 font-bold border border-red-500/30 truncate max-w-[50px] sm:max-w-none">
-                                  🔒 Gesperrt
+                                <span className="text-[8px] sm:text-[9px] font-mono px-1 py-0.2 rounded bg-red-500/20 text-red-300 font-bold border border-red-500/30 shrink-0">
+                                  <span className="sm:hidden">🔒</span>
+                                  <span className="hidden sm:inline">🔒 Gesperrt</span>
                                 </span>
                               )}
                               {tile.bookings.filter((b) => b.status !== "blocked").length > 0 && (
@@ -2430,7 +2433,7 @@ export default function GioModularStudio() {
       {/* ========================================================================= */}
       {/* MOBILE APP BOTTOM DOCK NAVIGATION (Nur auf Handy sichtbar)                */}
       {/* ========================================================================= */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#0a0a0d]/95 backdrop-blur-2xl border-t border-white/10 px-3 py-2 flex items-center justify-around md:hidden shadow-2xl">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#0a0a0d]/95 backdrop-blur-2xl border-t border-white/10 px-3 pt-2 pb-safe flex items-center justify-around md:hidden shadow-2xl">
         <button
           onClick={() => { switchModule("dashboard"); playSound("click"); }}
           className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${

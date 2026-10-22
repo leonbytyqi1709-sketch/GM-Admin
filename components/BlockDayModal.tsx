@@ -224,7 +224,7 @@ export default function BlockDayModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-      <div className="website-card w-full max-w-lg rounded-3xl p-5 sm:p-7 border border-white/15 bg-[#0f0f14] shadow-2xl space-y-5">
+      <div className="website-card w-full max-w-lg rounded-3xl p-5 sm:p-7 border border-white/15 bg-[#0f0f14] shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2.5">

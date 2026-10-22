@@ -111,31 +111,44 @@ export default function ClientBreakdownModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header */}
-        <div className="p-4 sm:p-6 border-b border-white/10 flex flex-wrap items-center justify-between gap-3 bg-[#121218]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#e8ba84]/15 border border-[#e8ba84]/30 flex items-center justify-center text-[#e8ba84]">
-              <Users className="w-5 h-5" />
+        <div className="p-4 sm:p-6 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#121218]">
+          <div className="flex items-center justify-between sm:justify-start gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-[#e8ba84]/15 border border-[#e8ba84]/30 flex items-center justify-center text-[#e8ba84] shrink-0">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-sm sm:text-lg font-black text-white tracking-wide flex items-center gap-2">
+                  KUNDEN-ÜBERSICHT
+                </h2>
+                <p className="text-[10px] sm:text-[11px] text-zinc-400">
+                  {scope === "week" ? "Woche (Montag bis Sonntag)" : "Alle Termine überhaupt (Gesamt)"}
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-black text-white tracking-wide flex items-center gap-2">
-                KUNDEN-ÜBERSICHT
-              </h2>
-              <p className="text-[11px] text-zinc-400">
-                {scope === "week" ? "Aktuelle Woche (Montag bis Sonntag)" : "Alle Termine überhaupt (Gesamt)"}
-              </p>
-            </div>
+
+            <button
+              onClick={() => {
+                onClose();
+                playSound("click");
+              }}
+              className="w-9 h-9 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 flex sm:hidden items-center justify-center text-zinc-400 hover:text-white transition"
+              aria-label="Schließen"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
             {/* Scope Toggle: Woche vs Gesamt */}
-            <div className="flex items-center gap-1 bg-black/60 p-1 rounded-xl border border-white/10">
+            <div className="flex items-center gap-1 bg-black/60 p-1 rounded-xl border border-white/10 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => {
                   onScopeChange("week");
                   playSound("click");
                 }}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                className={`flex-1 sm:flex-initial px-3 py-1 rounded-lg text-xs font-bold transition-all text-center ${
                   scope === "week"
                     ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] shadow-md"
                     : "text-zinc-400 hover:text-white"
@@ -149,7 +162,7 @@ export default function ClientBreakdownModal({
                   onScopeChange("all");
                   playSound("click");
                 }}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                className={`flex-1 sm:flex-initial px-3 py-1 rounded-lg text-xs font-bold transition-all text-center ${
                   scope === "all"
                     ? "bg-gradient-to-r from-[#e8ba84] to-[#c99756] text-[#070708] shadow-md"
                     : "text-zinc-400 hover:text-white"
@@ -164,7 +177,7 @@ export default function ClientBreakdownModal({
                 onClose();
                 playSound("click");
               }}
-              className="w-9 h-9 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition"
+              className="w-9 h-9 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hidden sm:flex items-center justify-center text-zinc-400 hover:text-white transition"
               aria-label="Schließen"
             >
               <X className="w-5 h-5" />

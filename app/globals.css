@@ -96,3 +96,8 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #2a2a34;
 }
+
+/* Safe area padding helper for modern mobile devices */
+.pb-safe {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0.75rem));
+}
